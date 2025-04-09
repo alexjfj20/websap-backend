@@ -12,41 +12,25 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Configuración CORS adecuada
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.CORS_ORIGIN, 'https://allseo.xyz'] 
-    : '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  credentials: true // Permitir cookies
-}));
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? ['https://allseo.xyz']
+  : ['http://localhost:5173', 'http://localhost:3000', '*'];
 
-// Middleware adicional para CORS (asegurarse de que las cabeceras se envíen correctamente)
-app.use((req, res, next) => {
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? [process.env.CORS_ORIGIN, 'https://allseo.xyz']
-    : '*';
+app.use(cors({
+  origin: function (origin, callback) {
+    // Permitir peticiones sin origen (como desde Postman)
+    if (!origin) return callback(null, true);
     
-  const origin = req.headers.origin;
-  if (process.env.NODE_ENV === 'production') {
-    if (allowedOrigins.includes(origin)) {
-      res.header('Access-Control-Allow-Origin', origin);
+    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('CORS policy: This origin is not allowed'));
     }
-  } else {
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Manejar solicitudes OPTIONS (preflight)
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  next();
-});
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+}));
 
 // Middleware para procesar JSON y formularios
 app.use(express.json({ limit: '10mb' }));

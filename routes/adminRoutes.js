@@ -1,35 +1,24 @@
 const express = require('express');
 const router = express.Router();
-const userController = require('../controllers/userController');
+const adminController = require('../controllers/adminController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
 // Middleware de protección para todas las rutas
 router.use(verifyToken);
 
-// Rutas para administración
-router.get('/users', userController.getUsers);
-router.post('/users', userController.createUser);
-router.put('/users/:id', userController.updateUser);
-router.delete('/users/:id', userController.deleteUser);
+// Ruta para obtener usuarios
+router.get('/users', adminController.getUsers);
+router.post('/users', adminController.createUser);
+router.put('/users/:id', adminController.updateUser);
+router.delete('/users/:id', adminController.deleteUser);
 
 // Ruta para obtener roles
-router.get('/roles', userController.getRoles);
+router.get('/roles', adminController.getRoles);
 
-// Rutas para estadísticas y dashboard
-router.get('/stats', (req, res) => {
-  // Endpoint temporal para estadísticas
-  res.status(200).json({
-    success: true,
-    data: {
-      totalUsers: 10,
-      activeUsers: 8,
-      inactiveUsers: 2,
-      totalIncome: 15750000,
-      status: 'Normal',
-      lastBackup: new Date().toISOString(),
-      recentActivity: []
-    }
-  });
-});
+// Ruta para obtener estadísticas del dashboard
+router.get('/dashboard', adminController.getDashboardStats);
+
+// Ruta para obtener elementos del menú
+router.get('/menu-items', adminController.getMenuItems);
 
 module.exports = router;
