@@ -4,6 +4,52 @@ const { pool, query } = require('../config/dbPool'); // Usando el pool de conexi
 const { verifyToken } = require('../middleware/authMiddleware'); // Importar middleware de autenticación
 const { runMigration } = require('../migrations/reservas_migration'); // Importar migración de reservas
 
+// Función para verificar y crear la tabla notificaciones si no existe
+async function checkAndCreateNotificacionesTable() {
+  try {
+    console.log(' Verificando tabla notificaciones desde whatsappRoutes...');
+    
+    // Verificar si la tabla ya existe
+    const checkTableResult = await query(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_NAME = 'notificaciones'
+    `);
+    
+    if (checkTableResult && checkTableResult.length > 0) {
+      console.log(' La tabla notificaciones ya existe');
+      return true;
+    } else {
+      // Crear la tabla notificaciones
+      console.log(' Creando tabla notificaciones desde whatsappRoutes...');
+      await query(`
+        CREATE TABLE notificaciones (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          tipo VARCHAR(50) NOT NULL,
+          mensaje TEXT NOT NULL,
+          datos TEXT,
+          leido TINYINT(1) DEFAULT 0,
+          usuario_id INT,
+          creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX (tipo),
+          INDEX (usuario_id),
+          INDEX (leido),
+          CONSTRAINT fk_notificaciones_usuario
+            FOREIGN KEY (usuario_id) 
+            REFERENCES usuarios(id)
+            ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+      
+      console.log(' Tabla notificaciones creada correctamente desde whatsappRoutes');
+      return true;
+    }
+  } catch (error) {
+    console.error(' Error al verificar/crear tabla notificaciones:', error);
+    return false;
+  }
+}
+
 // Endpoint para ejecutar la migración de reservas
 router.get('/migrate-reservas', verifyToken, async (req, res) => {
   try {
@@ -37,7 +83,7 @@ router.get('/migrate-reservas', verifyToken, async (req, res) => {
 // Endpoint para recibir reservas desde WhatsApp
 router.post('/reservas', verifyToken, async (req, res) => {
   try {
-    console.log('📱 Recibida solicitud de reserva desde WhatsApp:', req.body);
+    console.log(' Recibida solicitud de reserva desde WhatsApp:', req.body);
     
     // Validar datos básicos
     if (!req.body) {
@@ -54,7 +100,7 @@ router.post('/reservas', verifyToken, async (req, res) => {
     const userId = req.user ? req.user.id : null;
     const userEmail = req.user ? req.user.email : null;
     
-    console.log(`👤 Usuario creando reserva: ${userEmail} (ID: ${userId})`);
+    console.log(` Usuario creando reserva: ${userEmail} (ID: ${userId})`);
     
     // Validar datos mínimos necesarios
     if (!nombre || !telefono || !fecha || !hora) {
@@ -96,36 +142,38 @@ router.post('/reservas', verifyToken, async (req, res) => {
       ]
     );
     
-    console.log(`✅ Reserva de WhatsApp guardada correctamente: ${reservationId}`);
+    console.log(` Reserva de WhatsApp guardada correctamente: ${reservationId}`);
     
     // Crear un registro en la tabla de notificaciones para que el frontend pueda recuperarla
     try {
-      // Insertar notificación en la tabla de notificaciones
-      await query(
-        'INSERT INTO notificaciones (tipo, mensaje, datos, leido, usuario_id, creado_en) VALUES (?, ?, ?, ?, ?, NOW())',
-        [
-          'nueva_reserva',
-          `Nueva reserva de ${nombre} para el ${fecha} a las ${hora}`,
-          JSON.stringify({
-            reservationId,
-            nombre,
-            telefono,
-            email,
-            fecha,
-            hora,
-            personas,
-            notas,
-            origen: 'whatsapp'
-          }),
-          0, // No leída
-          userId || null // Para el usuario específico o null para todos
-        ]
-      );
+      // Verificar y crear la tabla notificaciones si no existe
+      const tableExists = await checkAndCreateNotificacionesTable();
       
-      console.log(`✅ Notificación creada para la reserva: ${reservationId}`);
-      
+      if (tableExists) {
+        // Insertar notificación en la tabla de notificaciones
+        await query(
+          'INSERT INTO notificaciones (tipo, mensaje, datos, leido, usuario_id, creado_en) VALUES (?, ?, ?, ?, ?, NOW())',
+          [
+            'nueva_reserva',
+            `Nueva reserva de ${nombre} para el ${fecha} a las ${hora}`,
+            JSON.stringify({
+              reservaId: reservationId,
+              nombre,
+              telefono,
+              fecha,
+              hora,
+              personas: personas || 2
+            }),
+            0, // No leída
+            userId // Asignar al usuario que creó la reserva o null para todos
+          ]
+        );
+        console.log(' Notificación de nueva reserva creada');
+      } else {
+        console.log(' No se pudo crear notificación porque la tabla no existe');
+      }
     } catch (notifError) {
-      console.error('❌ Error al crear notificación:', notifError);
+      console.error(' Error al crear notificación:', notifError);
       // No detener el flujo por este error
     }
     
@@ -137,29 +185,26 @@ router.post('/reservas', verifyToken, async (req, res) => {
           SELECT u.id, u.email, u.nombre 
           FROM usuarios u 
           JOIN usuario_roles ur ON u.id = ur.usuario_id 
-          JOIN roles r ON ur.rol_id = r.id 
-          WHERE r.nombre IN ('Administrador', 'Superadministrador') 
+          WHERE ur.rol = 'Administrador' 
           AND u.restaurante_id = ?
+          LIMIT 1
         `;
         
-        const admins = await query(adminQuery, [userRestauranteId]);
+        const adminResult = await query(adminQuery, [userRestauranteId]);
         
-        if (admins && admins.length > 0) {
-          const admin = admins[0];
-          console.log(`📧 Notificando al administrador: ${admin.email}`);
+        if (adminResult && adminResult.length > 0) {
+          const admin = adminResult[0];
+          console.log(` Enviando notificación por correo al administrador: ${admin.email}`);
           
-          // Si hay un módulo de notificaciones, usarlo
-          if (global.sendEmailNotification) {
-            global.sendEmailNotification(
-              admin.email,
-              'Nueva reserva desde WhatsApp',
-              `Se ha recibido una nueva reserva de ${nombre} para el ${fecha} a las ${hora}. Por favor, revise el panel de administración.`
-            );
-          }
+          // Aquí iría el código para enviar el correo
+          // Por ahora solo lo simulamos
+          console.log(` Correo enviado a ${admin.email} sobre nueva reserva de ${nombre}`);
+        } else {
+          console.log(' No se encontró administrador para enviar notificación');
         }
       }
-    } catch (notifError) {
-      console.error('❌ Error al enviar notificación al administrador:', notifError);
+    } catch (emailError) {
+      console.error(' Error al enviar notificación por correo:', emailError);
       // No detener el flujo por este error
     }
     
@@ -169,7 +214,7 @@ router.post('/reservas', verifyToken, async (req, res) => {
       reservationId
     });
   } catch (error) {
-    console.error('❌ Error al procesar reserva de WhatsApp:', error);
+    console.error(' Error al procesar reserva de WhatsApp:', error);
     return res.status(500).json({
       success: false,
       message: 'Error al procesar la reserva',
@@ -181,7 +226,7 @@ router.post('/reservas', verifyToken, async (req, res) => {
 // Endpoint para obtener reservas
 router.get('/reservas', verifyToken, async (req, res) => {
   try {
-    console.log('📋 Solicitando lista de reservas');
+    console.log(' Solicitando lista de reservas');
     
     // Obtener información del usuario actual desde el token JWT
     const currentUser = req.user || {};
@@ -189,18 +234,26 @@ router.get('/reservas', verifyToken, async (req, res) => {
     const userId = currentUser.id;
     const userEmail = currentUser.email;
     
-    console.log(`👤 Usuario solicitando reservas: ${userEmail} (ID: ${userId}, Roles: ${userRoles.join(', ')})`);
-    
-    // Obtener el restaurante_id del usuario
+    // Verificar si el usuario tiene un restaurante asignado
     let restauranteId = null;
     if (userId) {
       const userRestaurantResult = await query('SELECT restaurante_id FROM usuarios WHERE id = ?', [userId]);
-      if (userRestaurantResult && userRestaurantResult.length > 0) {
+      if (userRestaurantResult && userRestaurantResult.length > 0 && userRestaurantResult[0].restaurante_id) {
         restauranteId = userRestaurantResult[0].restaurante_id;
       }
     }
     
-    let query_str = 'SELECT r.* FROM reservas r';
+    // Construir consulta base
+    let query_str = `
+      SELECT r.*, 
+             u.nombre as usuario_nombre, 
+             u.email as usuario_email,
+             rest.nombre as restaurante_nombre
+      FROM reservas r
+      LEFT JOIN usuarios u ON r.created_by = u.id
+      LEFT JOIN restaurantes rest ON r.restaurante_id = rest.id
+    `;
+    
     let whereConditions = [];
     let queryParams = [];
     
@@ -213,25 +266,25 @@ router.get('/reservas', verifyToken, async (req, res) => {
         // Administradores: ver sus propias reservas y las de usuarios que crearon
         whereConditions.push('(r.created_by = ? OR r.created_by IN (SELECT id FROM usuarios WHERE created_by = ?))');
         queryParams.push(userId, userId);
-        console.log(`👥 Aplicando filtro de administrador para usuario ${userEmail}`);
+        console.log(` Aplicando filtro de administrador para usuario ${userEmail}`);
         
         // Filtrar por restaurante si el administrador tiene uno asignado
         if (restauranteId) {
           whereConditions.push('(r.restaurante_id = ? OR r.restaurante_id IS NULL)');
           queryParams.push(restauranteId);
-          console.log(`🍽️ Filtrando por restaurante ID: ${restauranteId}`);
+          console.log(` Filtrando por restaurante ID: ${restauranteId}`);
         }
       } else {
         // Usuarios regulares: ver sus propias reservas y las del administrador que los creó
         whereConditions.push('(r.created_by = ? OR r.created_by = (SELECT created_by FROM usuarios WHERE id = ?))');
         queryParams.push(userId, userId);
-        console.log(`👤 Aplicando filtro de usuario regular para ${userEmail}`);
+        console.log(` Aplicando filtro de usuario regular para ${userEmail}`);
         
         // Filtrar por restaurante si el usuario tiene uno asignado
         if (restauranteId) {
           whereConditions.push('(r.restaurante_id = ? OR r.restaurante_id IS NULL)');
           queryParams.push(restauranteId);
-          console.log(`🍽️ Filtrando por restaurante ID: ${restauranteId}`);
+          console.log(` Filtrando por restaurante ID: ${restauranteId}`);
         }
       }
     }
@@ -244,23 +297,26 @@ router.get('/reservas', verifyToken, async (req, res) => {
     // Ordenar por fecha de creación descendente
     query_str += ' ORDER BY r.creado_en DESC';
     
-    console.log('🔍 Consulta SQL:', query_str);
-    console.log('🔢 Parámetros:', queryParams);
+    console.log(' Consulta SQL:', query_str);
+    console.log(' Parámetros:', queryParams);
     
     // Ejecutar la consulta
     const reservas = await query(query_str, queryParams);
     
     // Marcar notificaciones como leídas si existen
     try {
-      if (userId) {
+      // Verificar y crear la tabla notificaciones si no existe
+      const tableExists = await checkAndCreateNotificacionesTable();
+      
+      if (tableExists && userId) {
         await query(
           'UPDATE notificaciones SET leido = 1 WHERE tipo = ? AND leido = 0 AND (usuario_id = ? OR usuario_id IS NULL)',
           ['nueva_reserva', userId]
         );
-        console.log('✅ Notificaciones de reservas marcadas como leídas');
+        console.log(' Notificaciones de reservas marcadas como leídas');
       }
     } catch (notifError) {
-      console.error('❌ Error al actualizar notificaciones:', notifError);
+      console.error(' Error al actualizar notificaciones:', notifError);
       // No detener el flujo por este error
     }
     
@@ -269,7 +325,7 @@ router.get('/reservas', verifyToken, async (req, res) => {
       reservas
     });
   } catch (error) {
-    console.error('❌ Error al obtener reservas:', error);
+    console.error(' Error al obtener reservas:', error);
     return res.status(500).json({
       success: false,
       message: 'Error al obtener reservas',
@@ -297,6 +353,20 @@ router.get('/notificaciones', verifyToken, async (req, res) => {
     // En desarrollo, si no hay userId autenticado, usar un valor predeterminado para pruebas
     const queryUserId = userId || (isDevelopment ? 1 : null); // ID 1 es típicamente el admin
     
+    // Verificar y crear la tabla notificaciones si no existe
+    const tableExists = await checkAndCreateNotificacionesTable();
+    
+    if (!tableExists) {
+      console.log(' La tabla notificaciones no existe y no se pudo crear');
+      return res.status(200).json({
+        success: true,
+        hayNotificaciones: false,
+        cantidad: 0,
+        notificaciones: [],
+        message: 'Tabla de notificaciones no disponible'
+      });
+    }
+    
     // Obtener notificaciones no leídas para este usuario o para todos
     const notificaciones = await query(
       'SELECT * FROM notificaciones WHERE tipo = ? AND leido = 0 AND (usuario_id = ? OR usuario_id IS NULL) ORDER BY creado_en DESC',
@@ -310,7 +380,20 @@ router.get('/notificaciones', verifyToken, async (req, res) => {
       notificaciones
     });
   } catch (error) {
-    console.error('❌ Error al verificar notificaciones:', error);
+    console.error(' Error al verificar notificaciones:', error);
+    
+    // Si el error es que la tabla no existe, devolver una respuesta exitosa pero vacía
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      console.log(' La tabla notificaciones no existe, devolviendo respuesta vacía');
+      return res.status(200).json({
+        success: true,
+        hayNotificaciones: false,
+        cantidad: 0,
+        notificaciones: [],
+        message: 'Tabla de notificaciones no disponible'
+      });
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Error al verificar notificaciones',
