@@ -73,6 +73,7 @@ const platoRoutes = require('./routes/platoRoutes'); // Rutas de plato individua
 const indexedDBRoutes = require('./routes/indexedDBRoutes'); // Rutas para IndexedDB
 const whatsappRoutes = require('./routes/whatsappRoutes'); // Rutas para WhatsApp
 const restauranteRoutes = require('./routes/restauranteRoutes'); // Rutas para restaurantes
+const healthRoutes = require('./routes/healthRoutes'); // Rutas para verificar salud del sistema
 
 // Registrar las rutas
 app.use('/api/sync', syncRoutes);
@@ -84,6 +85,7 @@ app.use('/api/plato', platoRoutes); // Rutas de plato individual
 app.use('/api/indexeddb', indexedDBRoutes); // Rutas para IndexedDB
 app.use('/api/whatsapp', whatsappRoutes); // Rutas para WhatsApp
 app.use('/api/restaurantes', restauranteRoutes); // Rutas para restaurantes
+app.use('/api/health', healthRoutes); // Rutas para verificar salud del sistema
 app.use('/', directDeleteRoutes);
 
 // Ruta de prueba simple
