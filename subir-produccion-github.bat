@@ -52,7 +52,16 @@ git commit -m "Build: %commit_msg%"
 
 REM Subir los cambios a GitHub
 echo Subiendo cambios a GitHub...
-git push
+
+REM Verificar si la rama tiene upstream configurado
+git rev-parse --abbrev-ref --symbolic-full-name @{upstream} >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo La rama actual no tiene una rama de seguimiento configurada.
+    echo Configurando rama de seguimiento y subiendo cambios...
+    git push --set-upstream origin main
+) else (
+    git push
+)
 
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: No se pudieron subir los cambios a GitHub.
