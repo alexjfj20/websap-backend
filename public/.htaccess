@@ -1,0 +1,1 @@
+# Configuración para manejar rutas de Single Page Application<IfModule mod_rewrite.c>  RewriteEngine On  RewriteBase /websap/  RewriteRule ^index\.html$ - [L]  RewriteCond %{REQUEST_FILENAME} !-f  RewriteCond %{REQUEST_FILENAME} !-d  RewriteRule . /websap/index.html [L]</IfModule>

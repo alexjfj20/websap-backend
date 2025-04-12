@@ -1,0 +1,846 @@
+/**
+ * Servicio para gestionar las operaciones administrativas
+ */
+import * as storageService from './storageService';
+import * as apiService from './apiService';
+
+// Lista local de usuarios para mantener estado entre llamadas
+let localUsers = [];
+
+/**
+ * Obtiene estadísticas para el dashboard de administrador
+ * @returns {Promise<Object>} Estadísticas del sistema
+ */
+export async function getDashboardStats() {
+  try {
+    // En desarrollo, devolver datos simulados pero con lógica para actualizarlos
+    if (process.env.NODE_ENV === 'development') {
+      // Obtener usuarios actuales para tener un conteo real
+      const usersResponse = await getUsers();
+      
+      const userCount = (usersResponse && usersResponse.success && Array.isArray(usersResponse.data)) 
+        ? usersResponse.data.length 
+        : 45; // Valor por defecto si no podemos obtener el conteo real
+
+      // Calcular usuarios activos/inactivos
+      const activeUsers = usersResponse && usersResponse.success && Array.isArray(usersResponse.data)
+        ? usersResponse.data.filter(user => user.estado === 'activo').length
+        : Math.floor(userCount * 0.75); // Aproximadamente 75% activos por defecto
+        
+      const inactiveUsers = userCount - activeUsers;
+
+      console.log(`Estadísticas actualizadas: ${userCount} usuarios totales (${activeUsers} activos, ${inactiveUsers} inactivos)`);
+
+      return {
+        success: true,
+        data: {
+          totalUsers: userCount,
+          activeUsers: activeUsers,
+          inactiveUsers: inactiveUsers,
+          activePayments: 28,
+          pendingPayments: 8,
+          overduePayments: 3,
+          totalIncome: 15750000,
+          status: 'Normal',
+          lastBackup: new Date().toISOString(),
+          recentActivity: [
+            // Añadir actividad reciente de creación de usuario si se ha creado uno recientemente
+            {
+              tipo: 'user_created',
+              usuario_nombre: 'Admin',
+              accion: 'creó un nuevo usuario',
+              fecha: new Date().toISOString()
+            },
+            {
+              tipo: 'login',
+              usuario_nombre: 'Laura Méndez',
+              accion: 'inició sesión en el sistema',
+              fecha: new Date().toISOString()
+            },
+            {
+              tipo: 'payment',
+              usuario_nombre: 'Carlos Gómez',
+              accion: 'realizó un pago de $350.000',
+              fecha: new Date(Date.now() - 3600000).toISOString() // 1 hora atrás
+            },
+            {
+              tipo: 'backup',
+              usuario_nombre: 'Sistema',
+              accion: 'realizó un respaldo automático',
+              fecha: new Date(Date.now() - 172800000).toISOString() // 2 días atrás
+            }
+          ]
+        }
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.get('/admin/stats');
+  } catch (error) {
+    console.error('Error al obtener estadísticas del dashboard:', error);
+    // Incluso en caso de error, devolver alguna información
+    return {
+      success: false,
+      error: error.message,
+      data: {
+        totalUsers: localUsers.length || 1,
+        activeUsers: localUsers.length || 1,
+        inactiveUsers: 0,
+        menuItemsCount: 0,
+        totalSales: 0,
+        status: 'Error',
+        recentActivity: []
+      }
+    };
+  }
+}
+
+/**
+ * Obtiene los elementos del menú
+ * @returns {Promise<Object>} Lista de elementos del menú
+ */
+export async function getMenuItems() {
+  try {
+    // En desarrollo, simular llamada a la API
+    if (process.env.NODE_ENV === 'development') {
+      // Obtener datos del servicio de almacenamiento
+      const menuItems = await storageService.getMenuItems();
+      return {
+        success: true,
+        data: menuItems,
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.get('/admin/menu-items');
+  } catch (error) {
+    console.error('Error al obtener elementos del menú:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene los elementos vendidos para el inventario
+ * @returns {Promise<Object>} Lista de elementos vendidos
+ */
+export async function getSoldItems() {
+  try {
+    // En desarrollo, simular llamada a la API
+    if (process.env.NODE_ENV === 'development') {
+      // Obtener datos del servicio de almacenamiento
+      const soldItems = await storageService.getSoldItems();
+      return {
+        success: true,
+        data: soldItems
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.get('/admin/sold-items');
+  } catch (error) {
+    console.error('Error al obtener elementos vendidos:', error);
+    throw error;
+  }
+}
+
+/**
+ * Actualiza el stock de un producto y guarda el historial de cambios
+ * @param {string} itemId - ID del producto a actualizar
+ * @param {number} newQuantity - Nueva cantidad de stock
+ * @param {Object} historyRecord - Registro para el historial de cambios
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+export async function updateItemStock(itemId, newQuantity, historyRecord) {
+  try {
+    // En desarrollo, usar el servicio de almacenamiento local
+    if (process.env.NODE_ENV === 'development') {
+      // Primero obtener el elemento actual
+      const menuItem = await getMenuItem(itemId);
+      
+      if (!menuItem.success || !menuItem.data) {
+        throw new Error('Producto no encontrado');
+      }
+      
+      // Actualizar el stock
+      await storageService.updateItemAvailability(itemId, newQuantity);
+      
+      // Actualizar el historial
+      if (historyRecord) {
+        // Si no existe stockHistory, crearlo
+        if (!menuItem.data.stockHistory) {
+          menuItem.data.stockHistory = [];
+        }
+        
+        // Añadir el nuevo registro al historial
+        menuItem.data.stockHistory.push(historyRecord);
+        
+        // Guardar el item actualizado con el historial
+        await storageService.saveMenuItem({
+          ...menuItem.data,
+          availableQuantity: newQuantity,
+          lastUpdated: new Date().toISOString()
+        });
+      }
+      
+      return {
+        success: true,
+        message: 'Stock actualizado correctamente'
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.post('/admin/update-stock', {
+      itemId,
+      newQuantity,
+      historyRecord
+    });
+  } catch (error) {
+    console.error('Error al actualizar stock:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene los usuarios del sistema
+ * @param {Object} options Opciones de filtrado y paginación
+ * @returns {Promise<Array>} Lista de usuarios
+ */
+export async function getUsers(options = {}) {
+  try {
+    // En desarrollo, devolver datos simulados
+    if (process.env.NODE_ENV === 'development' && false) { // Desactivamos la simulación local
+      // Si la lista local está vacía, inicializarla con usuarios default
+      if (localUsers.length === 0) {
+        localUsers = [
+          {
+            id: 1,
+            nombre: 'Admin Principal',
+            email: 'admin@ejemplo.com',
+            telefono: '3001234567',
+            roles: ['Superadministrador'],
+            estado: 'activo',
+            fecha_creacion: '2023-05-15T08:30:00Z'
+          },
+          {
+            id: 2,
+            nombre: 'Juan Pérez',
+            email: 'juan@ejemplo.com',
+            telefono: '3009876543',
+            roles: ['Administrador'],
+            estado: 'activo',
+            fecha_creacion: '2023-06-20T14:45:00Z'
+          },
+          {
+            id: 3,
+            nombre: 'María López',
+            email: 'maria@ejemplo.com',
+            telefono: '3002223344',
+            roles: ['Empleado'],
+            estado: 'activo',
+            fecha_creacion: '2023-07-05T11:15:00Z'
+          },
+          {
+            id: 4,
+            nombre: 'Carlos Rodríguez',
+            email: 'carlos@ejemplo.com',
+            telefono: '3005556677',
+            roles: ['Empleado'],
+            estado: 'inactivo',
+            fecha_creacion: '2023-08-10T09:20:00Z'
+          }
+        ];
+      }
+      console.log("getUsers - Total usuarios en memoria:", localUsers.length);
+      
+      // Aplicar filtros
+      let filteredUsers = [...localUsers];
+      
+      if (options.searchTerm) {
+        const term = options.searchTerm.toLowerCase();
+        filteredUsers = filteredUsers.filter(user => 
+          user.nombre.toLowerCase().includes(term) || 
+          user.email.toLowerCase().includes(term) ||
+          (user.telefono && user.telefono.toLowerCase().includes(term))
+        );
+      }
+      
+      if (options.role) {
+        filteredUsers = filteredUsers.filter(user => 
+          user.roles && user.roles.includes(options.role)
+        );
+      }
+      
+      if (options.status) {
+        filteredUsers = filteredUsers.filter(user => 
+          user.estado === options.status
+        );
+      }
+      
+      return {
+        success: true,
+        data: filteredUsers,
+        total: filteredUsers.length
+      };
+    }
+    
+    // Siempre usar la API real
+    console.log("Obteniendo usuarios desde la API real con opciones:", options);
+    
+    // Obtener el token actual del localStorage
+    const token = localStorage.getItem('token');
+    console.log("Token de autenticación disponible:", !!token);
+    
+    // Verificar si hay un token disponible
+    if (!token) {
+      console.error("No hay token de autenticación disponible");
+      return {
+        success: false,
+        message: 'No hay sesión activa. Por favor, inicie sesión nuevamente.'
+      };
+    }
+    
+    // Construir los parámetros de consulta
+    let queryParams = new URLSearchParams();
+    if (options.searchTerm) queryParams.append('search', options.searchTerm);
+    if (options.role) queryParams.append('role', options.role);
+    if (options.status) queryParams.append('status', options.status);
+    if (options.page) queryParams.append('page', options.page);
+    if (options.limit) queryParams.append('limit', options.limit);
+    
+    const queryString = queryParams.toString();
+    console.log("Query string construido:", queryString);
+    
+    // Llamar a la API real
+    const url = `/admin/users${queryString ? '?' + queryString : ''}`;
+    console.log("URL de la solicitud:", url);
+    
+    try {
+      const response = await apiService.default.get(url);
+      console.log("Respuesta de la API de usuarios:", response);
+      
+      // Verificar que la respuesta tiene el formato correcto
+      if (response && typeof response === 'object') {
+        // Si la respuesta no tiene la propiedad success, asumimos que es exitosa
+        if (!('success' in response)) {
+          return {
+            success: true,
+            data: Array.isArray(response) ? response : (response.data || []),
+            total: Array.isArray(response) ? response.length : (response.total || 0)
+          };
+        }
+        return response;
+      } else {
+        console.error("Respuesta inesperada de la API:", response);
+        return {
+          success: false,
+          message: 'Formato de respuesta inesperado',
+          data: []
+        };
+      }
+    } catch (apiError) {
+      console.error("Error en la llamada a la API:", apiError);
+      // Proporcionar una respuesta con formato consistente incluso en caso de error
+      return {
+        success: false,
+        message: apiError.message || 'Error al obtener usuarios',
+        data: []
+      };
+    }
+  } catch (error) {
+    console.error('Error general en getUsers:', error);
+    // Proporcionar una respuesta con formato consistente incluso en caso de error general
+    return {
+      success: false,
+      message: error.message || 'Error al obtener usuarios',
+      data: []
+    };
+  }
+}
+
+/**
+ * Obtiene los registros del sistema
+ * @returns {Promise<Object>} Lista de logs
+ */
+export async function getLogs() {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        success: true,
+        data: [
+          {
+            id: 1,
+            timestamp: new Date().toISOString(),
+            type: 'info',
+            user: 'Admin',
+            message: 'Inicio de sesión exitoso',
+            details: { ip: '192.168.1.1', userAgent: 'Chrome/96.0' }
+          },
+          {
+            id: 2,
+            timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hora atrás
+            type: 'warning',
+            user: 'Sistema',
+            message: 'Intento de acceso fallido',
+            details: { ip: '203.0.113.1', userAgent: 'Edge/96.0', attempts: 3 }
+          },
+          {
+            id: 3,
+            timestamp: new Date(Date.now() - 7200000).toISOString(), // 2 horas atrás
+            type: 'error',
+            user: 'Sistema',
+            message: 'Error en la creación de backup',
+            details: { error: 'Espacio insuficiente', code: 'E0023' }
+          },
+          {
+            id: 4,
+            timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 día atrás
+            type: 'success',
+            user: 'Juan Pérez',
+            message: 'Nuevo usuario creado',
+            details: { newUser: 'carlos@ejemplo.com' }
+          }
+        ]
+      });
+    }, 500);
+  });
+}
+
+/**
+ * Obtiene un elemento del menú por su ID
+ * @param {string} itemId - ID del elemento a obtener
+ * @returns {Promise<Object>} Elemento del menú
+ */
+export async function getMenuItem(itemId) {
+  try {
+    // En desarrollo, usar el servicio de almacenamiento local
+    if (process.env.NODE_ENV === 'development') {
+      const menuItems = await storageService.getMenuItems();
+      const item = menuItems.find(item => item.id === itemId);
+      
+      if (!item) {
+        return {
+          success: false,
+          message: 'Elemento no encontrado'
+        };
+      }
+      
+      return {
+        success: true,
+        data: item
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.get(`/admin/menu-items/${itemId}`);
+  } catch (error) {
+    console.error(`Error al obtener elemento del menú con ID ${itemId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene los roles disponibles en el sistema
+ * @returns {Promise<Object>} Lista de roles
+ */
+export async function getRoles() {
+  try {
+    // En desarrollo, devolver roles simulados
+    if (process.env.NODE_ENV === 'development') {
+      return {
+        success: true,
+        data: [
+          { id: 1, nombre: 'Superadministrador', descripcion: 'Control total del sistema' },
+          { id: 2, nombre: 'Administrador', descripcion: 'Gestión de usuarios y configuración' },
+          { id: 3, nombre: 'Empleado', descripcion: 'Operaciones básicas' }
+        ]
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.get('/admin/roles');
+  } catch (error) {
+    console.error('Error al obtener roles:', error);
+    return {
+      success: false,
+      message: error.message,
+      data: []
+    };
+  }
+}
+
+/**
+ * Crea un nuevo usuario
+ * @param {Object} userData - Datos del nuevo usuario
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+export async function createUser(userData) {
+  try {
+    // En desarrollo, simular creación
+    if (process.env.NODE_ENV === 'development') {
+      // Validar datos mínimos
+      if (!userData.nombre || !userData.email || !userData.password) {
+        return {
+          success: false,
+          message: 'Faltan datos obligatorios'
+        };
+      }
+      
+      // Verificar si el correo ya existe
+      const existingUser = localUsers.find(user => user.email === userData.email);
+      if (existingUser) {
+        return {
+          success: false,
+          message: 'El correo electrónico ya está registrado'
+        };
+      }
+      
+      // Generar ID único
+      const newId = localUsers.length > 0 
+        ? Math.max(...localUsers.map(user => user.id)) + 1 
+        : 1;
+      
+      // Crear nuevo usuario
+      const newUser = {
+        id: newId,
+        nombre: userData.nombre,
+        email: userData.email,
+        telefono: userData.telefono || '',
+        // En un entorno real, la contraseña se hashearía
+        password: userData.password,
+        roles: userData.roles || ['Empleado'],
+        estado: 'activo',
+        fecha_creacion: new Date().toISOString()
+      };
+      
+      // Añadir a la lista local
+      localUsers.push(newUser);
+      
+      console.log(`Usuario creado: ${newUser.nombre} (${newUser.email})`);
+      
+      return {
+        success: true,
+        message: 'Usuario creado correctamente',
+        data: {
+          id: newUser.id,
+          nombre: newUser.nombre,
+          email: newUser.email,
+          roles: newUser.roles,
+          estado: newUser.estado
+        }
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.post('/admin/users', userData);
+  } catch (error) {
+    console.error('Error al crear usuario:', error);
+    return {
+      success: false,
+      message: error.message || 'Error al crear usuario'
+    };
+  }
+}
+
+/**
+ * Actualiza un usuario existente
+ * @param {number} userId - ID del usuario a actualizar
+ * @param {Object} userData - Nuevos datos del usuario
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+export async function updateUser(userId, userData) {
+  try {
+    // En desarrollo, simular actualización
+    if (process.env.NODE_ENV === 'development') {
+      // Buscar usuario por ID
+      const userIndex = localUsers.findIndex(user => user.id === userId);
+      
+      if (userIndex === -1) {
+        return {
+          success: false,
+          message: 'Usuario no encontrado'
+        };
+      }
+      
+      // Actualizar datos
+      const updatedUser = {
+        ...localUsers[userIndex],
+        ...userData,
+        // Mantener ID y correo original
+        id: userId,
+        email: localUsers[userIndex].email
+      };
+      
+      // Actualizar en la lista local
+      localUsers[userIndex] = updatedUser;
+      
+      console.log(`Usuario actualizado: ${updatedUser.nombre} (ID: ${updatedUser.id})`);
+      
+      return {
+        success: true,
+        message: 'Usuario actualizado correctamente',
+        data: {
+          id: updatedUser.id,
+          nombre: updatedUser.nombre,
+          email: updatedUser.email,
+          roles: updatedUser.roles,
+          estado: updatedUser.estado
+        }
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.put(`/admin/users/${userId}`, userData);
+  } catch (error) {
+    console.error('Error al actualizar usuario:', error);
+    return {
+      success: false,
+      message: error.message || 'Error al actualizar usuario'
+    };
+  }
+}
+
+/**
+ * Cambia el estado de un usuario (activo/inactivo)
+ * @param {number} userId - ID del usuario
+ * @param {string} estado - Nuevo estado ('activo' o 'inactivo')
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+export async function cambiarEstadoUsuario(userId, estado) {
+  try {
+    // Validar estado
+    if (estado !== 'activo' && estado !== 'inactivo') {
+      return {
+        success: false,
+        message: 'Estado inválido'
+      };
+    }
+    
+    // En desarrollo, simular cambio de estado
+    if (process.env.NODE_ENV === 'development') {
+      // Buscar usuario por ID
+      const userIndex = localUsers.findIndex(user => user.id === userId);
+      
+      if (userIndex === -1) {
+        return {
+          success: false,
+          message: 'Usuario no encontrado'
+        };
+      }
+      
+      // Actualizar estado
+      localUsers[userIndex].estado = estado;
+      
+      console.log(`Estado de usuario ${userId} cambiado a: ${estado}`);
+      
+      return {
+        success: true,
+        message: `Usuario ${estado === 'activo' ? 'activado' : 'desactivado'} correctamente`,
+        data: {
+          id: localUsers[userIndex].id,
+          estado: localUsers[userIndex].estado
+        }
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.put(`/admin/users/${userId}/estado`, { estado });
+  } catch (error) {
+    console.error('Error al cambiar estado de usuario:', error);
+    return {
+      success: false,
+      message: error.message || 'Error al cambiar estado de usuario'
+    };
+  }
+}
+
+/**
+ * Elimina un usuario
+ * @param {number} userId - ID del usuario a eliminar
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+export async function deleteUser(userId) {
+  try {
+    // En desarrollo, simular eliminación
+    if (process.env.NODE_ENV === 'development') {
+      // Buscar usuario por ID
+      const userIndex = localUsers.findIndex(user => user.id === userId);
+      
+      if (userIndex === -1) {
+        return {
+          success: false,
+          message: 'Usuario no encontrado'
+        };
+      }
+      
+      // Eliminar de la lista local
+      const deletedUser = localUsers.splice(userIndex, 1)[0];
+      
+      console.log(`Usuario eliminado: ${deletedUser.nombre} (ID: ${deletedUser.id})`);
+      
+      return {
+        success: true,
+        message: 'Usuario eliminado correctamente'
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.delete(`/admin/users/${userId}`);
+  } catch (error) {
+    console.error('Error al eliminar usuario:', error);
+    return {
+      success: false,
+      message: error.message || 'Error al eliminar usuario'
+    };
+  }
+}
+
+/**
+ * Realiza un respaldo del sistema
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+export async function createBackup() {
+  try {
+    // En desarrollo, simular respaldo
+    if (process.env.NODE_ENV === 'development') {
+      // Simular tiempo de procesamiento
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const backupId = Date.now().toString();
+      const backupDate = new Date().toISOString();
+      
+      console.log(`Respaldo creado: ${backupId} (${backupDate})`);
+      
+      return {
+        success: true,
+        message: 'Respaldo creado correctamente',
+        data: {
+          id: backupId,
+          fecha: backupDate,
+          tamaño: '2.3 MB',
+          estado: 'Completado'
+        }
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.post('/admin/backups');
+  } catch (error) {
+    console.error('Error al crear respaldo:', error);
+    return {
+      success: false,
+      message: error.message || 'Error al crear respaldo'
+    };
+  }
+}
+
+/**
+ * Obtiene la lista de respaldos
+ * @returns {Promise<Object>} Lista de respaldos
+ */
+export async function getBackups() {
+  try {
+    // En desarrollo, devolver respaldos simulados
+    if (process.env.NODE_ENV === 'development') {
+      const now = Date.now();
+      
+      return {
+        success: true,
+        data: [
+          {
+            id: '1',
+            fecha: new Date(now - 3600000).toISOString(), // 1 hora atrás
+            tamaño: '2.3 MB',
+            usuario: 'Admin',
+            estado: 'Completado',
+            tipo: 'Manual'
+          },
+          {
+            id: '2',
+            fecha: new Date(now - 86400000).toISOString(), // 1 día atrás
+            tamaño: '2.1 MB',
+            usuario: 'Sistema',
+            estado: 'Completado',
+            tipo: 'Automático'
+          },
+          {
+            id: '3',
+            fecha: new Date(now - 172800000).toISOString(), // 2 días atrás
+            tamaño: '2.0 MB',
+            usuario: 'Sistema',
+            estado: 'Completado',
+            tipo: 'Automático'
+          }
+        ]
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.get('/admin/backups');
+  } catch (error) {
+    console.error('Error al obtener respaldos:', error);
+    return {
+      success: false,
+      message: error.message,
+      data: []
+    };
+  }
+}
+
+/**
+ * Restaura el sistema desde un respaldo
+ * @param {string} backupId - ID del respaldo a restaurar
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+export async function restoreBackup(backupId) {
+  try {
+    // En desarrollo, simular restauración
+    if (process.env.NODE_ENV === 'development') {
+      // Simular tiempo de procesamiento
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      console.log(`Restauración desde respaldo ${backupId} completada`);
+      
+      return {
+        success: true,
+        message: 'Sistema restaurado correctamente'
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.post(`/admin/backups/${backupId}/restore`);
+  } catch (error) {
+    console.error('Error al restaurar desde respaldo:', error);
+    return {
+      success: false,
+      message: error.message || 'Error al restaurar desde respaldo'
+    };
+  }
+}
+
+/**
+ * Elimina un respaldo
+ * @param {string} backupId - ID del respaldo a eliminar
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+export async function deleteBackup(backupId) {
+  try {
+    // En desarrollo, simular eliminación
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Respaldo ${backupId} eliminado`);
+      
+      return {
+        success: true,
+        message: 'Respaldo eliminado correctamente'
+      };
+    }
+    
+    // En producción, hacer la llamada a la API real
+    return await apiService.delete(`/admin/backups/${backupId}`);
+  } catch (error) {
+    console.error('Error al eliminar respaldo:', error);
+    return {
+      success: false,
+      message: error.message || 'Error al eliminar respaldo'
+    };
+  }
+}

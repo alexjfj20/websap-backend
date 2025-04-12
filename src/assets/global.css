@@ -1,0 +1,32 @@
+/* Estilos globales para la aplicación */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Arial', sans-serif;
+  background-color: #f5f5f5;
+  color: #333;
+  line-height: 1.6;
+}
+
+/* Estilos para elementos adicionales que necesitan estar disponibles globalmente */
+.add-to-cart-notification {
+  position: fixed;
+  bottom: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #28a745;
+  color: white;
+  padding: 12px 25px;
+  border-radius: 30px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: bottom 0.5s ease;
+  z-index: 1000;
+}
+
+.add-to-cart-notification.show {
+  bottom: 30px;
+}
