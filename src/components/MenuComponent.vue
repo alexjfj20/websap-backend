@@ -510,6 +510,8 @@ import apiConfig from '../config/apiConfig';
 
 // ...existing code...
 
+import SalesChartComponent from '../components/SalesChartComponent.vue';
+
 export default {
   name: 'MenuComponent',
   components: {
