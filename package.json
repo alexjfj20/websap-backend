@@ -1,11 +1,11 @@
 {  "name": "websap",  "version": "0.1.0",  "private": true,  
-  "main": "server.js",
-  "engines": {    "node": ">=16.0.0"  },  "scripts": {
+  "main": "server.js",  "engines": {    "node": ">=16.0.0"  },  "scripts": {
     "serve": "cross-env vue-cli-service serve",
     "prebuild": "echo '🔄 Iniciando proceso de construcción'",
-    "build": "mkdir -p ./dist && cp -r ./public/* ./dist/ && touch ./dist/.gitkeep && ls -la ./dist && pwd && echo '✅ Build completado con éxito en' \"$(pwd)/dist\"",
+    "build": "npm run prepare-render",
+    "prepare-render": "node prepare-render.js",
     "lint": "npx vue-cli-service lint",
-    "start": "node server.js",
+    "start": "node render-server.js",
     "dev": "nodemon backend/server.js",
     "seed": "node backend/scripts/seedData.js"
   },
