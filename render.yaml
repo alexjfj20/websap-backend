@@ -1,0 +1,18 @@
+# render.yaml - Configuración para despliegue en Render.com
+services:
+  # Servicio para el frontend
+  - type: web
+    name: websap-frontend
+    env: node
+    buildCommand: mkdir -p /opt/render/project/src/dist && cp -r /opt/render/project/src/public/* /opt/render/project/src/dist/ && bash /opt/render/project/src/render-build.sh
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+    buildFilter:
+      paths:
+        - src/**
+        - public/**
+        - server.js
+        - render-build.sh
+        - package.json
