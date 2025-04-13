@@ -1,4 +1,8 @@
 {  "name": "websap",  "version": "0.1.0",  "private": true,  
+  "main": "server.js",
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "scripts": {
     "serve": "cross-env vue-cli-service serve",
     "build": "node build-for-render.js",
