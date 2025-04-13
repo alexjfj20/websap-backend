@@ -3,6 +3,8 @@ const allowedOrigins = [
   'https://allseo.xyz',
   'http://allseo.xyz',
   'https://www.allseo.xyz',
+  'https://allseo.xyz/websap',
+  'http://allseo.xyz/websap',
   'http://localhost:8080',
   'http://localhost:3000'
 ];
