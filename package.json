@@ -1,11 +1,10 @@
 {
   "name": "websap",
   "version": "0.1.0",
-  "private": true,
-  "scripts": {
+  "private": true,  "scripts": {
     "serve": "cross-env vue-cli-service serve",
-    "build": "npm install && vue-cli-service build",
-    "lint": "vue-cli-service lint",
+    "build": "npm install && npx vue-cli-service build",
+    "lint": "npx vue-cli-service lint",
     "start": "node server.js",
     "dev": "nodemon backend/server.js",
     "seed": "node backend/scripts/seedData.js"
