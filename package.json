@@ -1,10 +1,9 @@
 {  "name": "websap",  "version": "0.1.0",  "private": true,  
   "main": "server.js",  "engines": {    "node": ">=16.0.0"  },  "scripts": {
-    "serve": "cross-env vue-cli-service serve",
-    "prebuild": "echo '🔄 Iniciando proceso de construcción'",    "build": "echo 'Paso de construcción completado'",
-    "postbuild": "node prepare-static-files.js",
+    "serve": "cross-env vue-cli-service serve",    "prebuild": "echo '🔄 Iniciando proceso de construcción'",    "build": "echo 'Paso de construcción completado'",
+    "postbuild": "node prepare-static-files.js && cp web-server.js server.js",
     "lint": "npx vue-cli-service lint",
-    "start": "node web-server.js",
+    "start": "node server.js",
     "dev": "nodemon backend/server.js",
     "seed": "node backend/scripts/seedData.js"
   },
