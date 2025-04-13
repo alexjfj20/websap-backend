@@ -1,8 +1,7 @@
-{  "name": "websap",  "version": "0.1.0",  "private": true,  
-  "main": "server.js",  "engines": {    "node": ">=16.0.0"  },  "scripts": {    "serve": "cross-env vue-cli-service serve",    "prebuild": "echo '🔄 Iniciando proceso de construcción'",    "build": "echo 'Paso de construcción completado'",
-    "postbuild": "node prepare-static-files.js && node -e \"require('fs').copyFileSync('web-server.js', 'server.js'); console.log('✅ Archivo web-server.js copiado a server.js');\"",
+{  "name": "websap",  "version": "0.1.0",  "private": true,    "main": "render-server.js",  "engines": {    "node": ">=16.0.0"  },  "scripts": {    "serve": "cross-env vue-cli-service serve",    "prebuild": "echo '🔄 Iniciando proceso de construcción'",    "build": "echo 'Paso de construcción completado'",
+    "postbuild": "echo '✅ Preparación completada'",
     "lint": "npx vue-cli-service lint",
-    "start": "node web-server.js || node server.js",
+    "start": "node render-server.js",
     "dev": "nodemon backend/server.js",
     "seed": "node backend/scripts/seedData.js"
   },
