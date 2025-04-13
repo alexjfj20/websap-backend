@@ -1,7 +1,7 @@
 {  "name": "websap",  "version": "0.1.0",
   "private": true,  "scripts": {
     "serve": "cross-env vue-cli-service serve",
-    "build": "npm install --production=false && npm install -g @vue/cli && vue-cli-service build",
+    "build": "node render-build.js",
     "lint": "npx vue-cli-service lint",
     "start": "node server.js",
     "dev": "nodemon backend/server.js",
