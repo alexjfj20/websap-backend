@@ -28,11 +28,30 @@ if (!runCommand('npm install --production=false')) {
   process.exit(1);
 }
 
-// Verificar si existe la carpeta dist, crearla si no existe
+// Verificar si existe la carpeta dist, crearla si no existe o vaciarla si existe
 const distDir = path.join(__dirname, 'dist');
 if (!fs.existsSync(distDir)) {
   console.log('📁 Creando directorio dist...');
   fs.mkdirSync(distDir, { recursive: true });
+} else {
+  console.log('📁 Limpiando directorio dist existente...');
+  // Verificar que el directorio existe y es un directorio
+  if (fs.statSync(distDir).isDirectory()) {
+    // Listar todos los archivos en el directorio
+    const files = fs.readdirSync(distDir);
+    
+    // Eliminar cada archivo/directorio
+    for (const file of files) {
+      const curPath = path.join(distDir, file);
+      if (fs.statSync(curPath).isDirectory()) {
+        // Si es un directorio, eliminar recursivamente
+        fs.rmSync(curPath, { recursive: true, force: true });
+      } else {
+        // Si es un archivo, eliminar directamente
+        fs.unlinkSync(curPath);
+      }
+    }
+  }
 }
 
 // Crear un archivo HTML básico para la carpeta dist
@@ -112,6 +131,16 @@ if (!buildSuccess) {
   // Copiar archivos estáticos existentes si los hay
   console.log('📋 Copiando archivos estáticos existentes...');
   
+  // Asegurar que el directorio dist existe
+  if (!fs.existsSync(distDir)) {
+    console.log('📁 Creando directorio dist (aseguramiento)...');
+    fs.mkdirSync(distDir, { recursive: true });
+  }
+  
+  // Crear un archivo de marcador para confirmar que el directorio dist existe
+  fs.writeFileSync(path.join(distDir, '.render-marker'), 'Este archivo es un marcador para que Render detecte el directorio dist');
+
+  // Copiar archivos de la carpeta public si existe
   if (fs.existsSync(path.join(__dirname, 'public'))) {
     const publicFiles = fs.readdirSync(path.join(__dirname, 'public'));
     
@@ -120,27 +149,48 @@ if (!buildSuccess) {
         const srcPath = path.join(__dirname, 'public', file);
         const destPath = path.join(distDir, file);
         
-        if (fs.statSync(srcPath).isDirectory()) {
-          // Crear directorio si no existe
-          if (!fs.existsSync(destPath)) {
-            fs.mkdirSync(destPath, { recursive: true });
-          }
-          
-          // Copiar archivos en el directorio
-          const dirFiles = fs.readdirSync(srcPath);
-          for (const dirFile of dirFiles) {
-            const dirSrcPath = path.join(srcPath, dirFile);
-            const dirDestPath = path.join(destPath, dirFile);
-            
-            if (!fs.statSync(dirSrcPath).isDirectory()) {
-              fs.copyFileSync(dirSrcPath, dirDestPath);
+        try {
+          if (fs.statSync(srcPath).isDirectory()) {
+            // Crear directorio si no existe
+            if (!fs.existsSync(destPath)) {
+              fs.mkdirSync(destPath, { recursive: true });
             }
+            
+            // Copiar archivos en el directorio
+            const dirFiles = fs.readdirSync(srcPath);
+            for (const dirFile of dirFiles) {
+              const dirSrcPath = path.join(srcPath, dirFile);
+              const dirDestPath = path.join(destPath, dirFile);
+              
+              if (!fs.statSync(dirSrcPath).isDirectory()) {
+                fs.copyFileSync(dirSrcPath, dirDestPath);
+                console.log(`✓ Copiado: ${dirFile}`);
+              }
+            }
+          } else {
+            fs.copyFileSync(srcPath, destPath);
+            console.log(`✓ Copiado: ${file}`);
           }
-        } else {
-          fs.copyFileSync(srcPath, destPath);
+        } catch (error) {
+          console.error(`❌ Error al copiar ${srcPath}: ${error.message}`);
         }
       }
     }
+  }
+  
+  // Imprimir contenido del directorio dist para debugging
+  console.log('📂 Contenido del directorio dist:');
+  if (fs.existsSync(distDir) && fs.statSync(distDir).isDirectory()) {
+    const files = fs.readdirSync(distDir);
+    if (files.length === 0) {
+      console.log('   (directorio vacío)');
+    } else {
+      files.forEach(file => {
+        console.log(`   - ${file}`);
+      });
+    }
+  } else {
+    console.log('   ❌ El directorio dist no existe o no es un directorio');
   }
 }
 
