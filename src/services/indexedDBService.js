@@ -1,7 +1,10 @@
-// Servicio para manejar operaciones con IndexedDB
+import { openDB } from 'idb';
+import { v4 as uuidv4 } from 'uuid';
+import apiConfig from '../config/apiConfig';
+
+const API_BASE_URL = apiConfig.API_DOMAIN; // URL base para la API
 const DB_NAME = 'restauranteAppDB'; // Usar este nombre para todas las operaciones
 const DB_VERSION = 4; // Incrementar la versión para forzar una actualización del esquema
-const API_BASE_URL = process.env.VUE_APP_API_URL || 'http://localhost:3000'; // URL base para la API
 const PLATOS_STORE = 'platos'; // Usar 'platos' en lugar de 'menuItems'
 const SYNC_QUEUE_STORE = 'syncQueue';
 
@@ -67,7 +70,7 @@ const initDB = () => {
 };
 
 // Abrir conexión a la base de datos
-const openDB = async () => {
+const openDatabase = async () => {
   try {
     return await initDB();
   } catch (error) {
@@ -1067,7 +1070,7 @@ if (typeof window !== 'undefined') {
 }
 
 export {
-  openDB,
+  openDatabase,
   savePlato,
   getAllPlatos,
   getPendingPlatos,
@@ -1087,7 +1090,7 @@ export {
 };
 
 export default {
-  openDB,
+  openDatabase,
   savePlato,
   getAllPlatos,
   getPendingPlatos,

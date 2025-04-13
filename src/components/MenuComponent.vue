@@ -498,30 +498,17 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
-import { saveMenu } from '../services/menuService';
-import { formatShareLinkMessage } from '../utils/messageFormatter';
-import { copyToClipboard } from '../utils/clipboardUtils';
-import SalesChartComponent from './SalesChartComponent.vue';
-import { saveAs } from 'file-saver';
-import * as XLSX from 'xlsx';
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import QrcodeVue from 'qrcode.vue';
+import html2canvas from 'html2canvas';
+import chroma from 'chroma-js';
+import { isAdmin } from '../services/authService';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-import { 
-  getMenuItems, 
-  saveMenuItems,
-  getBusinessInfo, 
-  saveBusinessInfo as saveBusinessInfoToDB,
-  getSoldItems, 
-  saveSoldItems,
-  deleteMenuItemFromDB,
-  migrateFromLocalStorage,
-  compressImage,
-  updateItemAvailability
-} from '../services/storageService';
-import { confirm, alert } from '../services/dialogService';
-import { getCurrentUser, hasRole } from '../services/authService';
-import { guardarPlato } from '@/services/indexedDBService';
+import qrcode from 'qrcode';
+import apiConfig from '../config/apiConfig';
+
+// ...existing code...
 
 export default {
   name: 'MenuComponent',
@@ -933,7 +920,7 @@ export default {
         // Eliminar del backend MySQL directamente
         try {
           console.log(`Eliminando plato con ID: ${item.id} del servidor MySQL`);
-          const response = await fetch(`http://localhost:3000/direct-delete?id=${encodeURIComponent(item.id)}`, {
+          const response = await fetch(`${apiConfig.API_DOMAIN}/direct-delete?id=${encodeURIComponent(item.id)}`, {
             method: 'GET',
             headers: {
               'Cache-Control': 'no-cache'
@@ -1175,7 +1162,7 @@ export default {
         // Eliminar del backend MySQL directamente
         try {
           console.log(`Eliminando plato con ID: ${item.id} del servidor MySQL`);
-          const response = await fetch(`http://localhost:3000/direct-delete?id=${encodeURIComponent(item.id)}`, {
+          const response = await fetch(`${apiConfig.API_DOMAIN}/direct-delete?id=${encodeURIComponent(item.id)}`, {
             method: 'GET',
             headers: {
               'Cache-Control': 'no-cache'
@@ -2447,3 +2434,4 @@ tfoot td {
   opacity: 0.7;
 }
 </style>
+```

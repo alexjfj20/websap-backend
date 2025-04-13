@@ -1,11 +1,7 @@
-/**
- * Servicio para manejar las peticiones API al backend
- */
+import apiConfig from '../config/apiConfig';
 
 // URL base de la API
-const API_URL = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:3000/api' 
-  : '/api';
+const API_URL = apiConfig.API_URL;
 
 // Token de autenticación
 let token = localStorage.getItem('token') || '';

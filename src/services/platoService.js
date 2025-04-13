@@ -4,9 +4,10 @@ import { savePlato, getAllPlatos, updatePlatoSyncStatus, deletePlato as deleteFr
 import { isOnline } from './syncService';
 import { adaptPlatoData } from '../utils/dataAdapters';
 import { getCurrentUserRestaurant } from './restauranteService';
+import apiConfig from '../config/apiConfig'; // Importar la configuración centralizada
 
-// API URL ahora con puerto correcto
-const API_URL = 'http://localhost:3000/api';
+// Usar la URL de la configuración
+const API_URL = apiConfig.API_URL;
 
 // Crear un nuevo plato
 const createPlato = async (platoData) => {
