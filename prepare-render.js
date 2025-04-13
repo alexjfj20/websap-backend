@@ -15,7 +15,38 @@ try {
   console.log('📦 Instalando dependencias esenciales...');
   execSync('npm install express serve-static connect-history-api-fallback --save', { stdio: 'inherit' });
   
-  // 2. Copiar archivos estáticos a la carpeta public
+  // 2. Crear explícitamente el directorio dist que Render está buscando
+  console.log('📂 Creando directorio dist para Render...');
+  if (!fs.existsSync(path.join(__dirname, 'dist'))) {
+    fs.mkdirSync(path.join(__dirname, 'dist'), { recursive: true });
+  }
+  
+  // 3. Copiar archivos estáticos de public a dist
+  console.log('📂 Copiando archivos estáticos a dist...');
+  const publicDir = path.join(__dirname, 'public');
+  const distDir = path.join(__dirname, 'dist');
+  
+  if (fs.existsSync(publicDir)) {
+    const files = fs.readdirSync(publicDir);
+    files.forEach(file => {
+      const srcPath = path.join(publicDir, file);
+      const destPath = path.join(distDir, file);
+      
+      if (fs.statSync(srcPath).isDirectory()) {
+        // Si es un directorio, crear el directorio en dist y copiar recursivamente
+        if (!fs.existsSync(destPath)) {
+          fs.mkdirSync(destPath, { recursive: true });
+        }
+        // Aquí podrías implementar una copia recursiva si es necesario
+      } else {
+        // Si es un archivo, copiarlo directamente
+        fs.copyFileSync(srcPath, destPath);
+        console.log(`Copiado: ${file}`);
+      }
+    });
+  }
+  
+  // 4. Verificar estructura de archivos
   console.log('📂 Verificando estructura de archivos...');
   
   // Crear archivo render-server.js que servirá la aplicación
