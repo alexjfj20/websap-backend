@@ -20,11 +20,10 @@ export const testApiConnection = async () => {
 
   connectionTestInProgress = true;
   console.log('🔄 Probando conexión con la API...');
-
   // Dominios a probar (en orden de preferencia)
   const domains = [
     apiConfig.API_DOMAIN,                   // Dominio configurado actual
-    'https://api.allseo.xyz',              // Servidor principal de producción
+    'https://websap-backend.onrender.com',  // Servidor principal de producción (Render)
     'https://allseo.xyz',                  // Servidor principal sin subdominio
     'https://api.websap.app',              // Servidor alternativo
     'http://localhost:3000'                // Local para desarrollo

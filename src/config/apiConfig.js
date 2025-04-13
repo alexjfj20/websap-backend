@@ -7,7 +7,7 @@ const isProd = process.env.NODE_ENV === 'production';
 const storedApiUrl = localStorage.getItem('apiUrl');
 
 // API real sin subdirectorios 'api' o 'raw' al final
-const apiDomain = storedApiUrl || (isProd ? 'https://api.allseo.xyz' : 'http://localhost:3000');
+const apiDomain = storedApiUrl || (isProd ? 'https://websap-backend.onrender.com' : 'http://localhost:3000');
 
 // Configuración para entorno de producción y desarrollo
 const config = {

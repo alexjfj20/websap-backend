@@ -63,10 +63,9 @@ export const diagnoseNetworkIssues = async () => {
  */
 const testDnsResolution = async () => {
   console.log('🔍 Verificando resolución DNS...');
-  
-  // Prueba de múltiples dominios para verificar DNS
+    // Prueba de múltiples dominios para verificar DNS
   const domainsToTest = [
-    { url: 'https://api.allseo.xyz/ping', name: 'API Principal' },
+    { url: 'https://websap-backend.onrender.com/ping', name: 'API Principal' },
     { url: 'https://allseo.xyz/ping', name: 'Dominio Principal' },
     { url: 'https://google.com', name: 'Referencia Externa' }
   ];
@@ -154,7 +153,7 @@ const testAllApis = async () => {
 
   // Lista de APIs a probar
   const apiEndpoints = [
-    { url: 'https://api.allseo.xyz/api/test/ping', name: 'API Principal' },
+    { url: 'https://websap-backend.onrender.com/api/test/ping', name: 'API Principal' },
     { url: 'https://allseo.xyz/api/test/ping', name: 'Dominio Principal' },
     { url: 'https://api.websap.app/api/test/ping', name: 'API Alternativa' },
     { url: 'http://localhost:3000/api/test/ping', name: 'Local 3000' },
@@ -229,7 +228,7 @@ const testAllApis = async () => {
  */
 const testCorsConfiguration = async () => {
   // Usar la API que funciona (si hay alguna)
-  const testEndpoint = localStorage.getItem('apiUrl') || 'https://api.allseo.xyz';
+  const testEndpoint = localStorage.getItem('apiUrl') || 'https://websap-backend.onrender.com';
   
   try {
     const response = await fetch(`${testEndpoint}/api/test/cors`, {
@@ -268,7 +267,7 @@ const getRecommendations = (results) => {
   }
   
   if (!results.dns && results.internet) {
-    recommendations.push('Hay problemas con la resolución DNS. Verifica que el dominio api.allseo.xyz esté correctamente configurado y propagado.');
+    recommendations.push('Hay problemas con la resolución DNS. Verifica que el dominio websap-backend.onrender.com esté correctamente configurado y propagado.');
   }
   
   if (!results.apis.main && !results.apis.alternative && results.dns) {
