@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 
 (async () => {
-  const serverUrl = 'http://localhost:3000/api/ping'; // Cambia esto si el servidor está en otro puerto o URL
+  const serverUrl = 'https://websap-backend.onrender.com/api/ping'; // URL del backend en Render
 
   try {
     console.log(`Intentando conectar con el servidor en: ${serverUrl}`);
