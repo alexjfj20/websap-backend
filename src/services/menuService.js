@@ -232,6 +232,39 @@ export async function getSharedMenu(menuId) {
           throw new Error('Sin conexión real al servidor');
         }
         
+        // Modificar la lógica para priorizar el servidor en URLs públicas
+        if (!menuData || window.location.href.includes('/websap/menu/')) {
+          try {
+            console.log('Intentando recuperar menú desde el servidor...');
+            const response = await apiService.get(`/platos/menu/${menuId}`);
+            if (response && response.success && response.data) {
+              menuData = response.data;
+              console.log('Menú recuperado desde el servidor:', menuData);
+            } else {
+              console.warn('No se pudo recuperar el menú desde el servidor:', response);
+            }
+          } catch (serverError) {
+            console.error('Error al recuperar el menú desde el servidor:', serverError);
+          }
+        }
+
+        // Mantener IndexedDB como respaldo
+        if (!menuData) {
+          try {
+            console.log('Intentando recuperar menú desde IndexedDB...');
+            const menuUtils = await import('./menuUtils');
+            const localMenu = await menuUtils.getMenuFromIndexedDB(menuId);
+            if (localMenu && localMenu.items && localMenu.items.length > 0) {
+              console.log('Menú recuperado desde IndexedDB:', localMenu);
+              menuData = localMenu;
+            } else {
+              console.warn('No se encontró el menú en IndexedDB o no contiene items');
+            }
+          } catch (localError) {
+            console.warn('No se pudo obtener el menú desde IndexedDB:', localError);
+          }
+        }
+
         // Hacemos la petición al servidor para obtener el menú con timeout
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -267,8 +300,8 @@ export async function getSharedMenu(menuId) {
           }
           // Pasamos al fallback si no tenemos caché
         }
-      } catch (serverError) {
-        console.error('Error al obtener el menú desde el servidor:', serverError);
+      } catch (error) {
+        console.error('Error al obtener el menú desde el servidor:', error);
         // Si hay error de conexión pero tenemos datos en caché, usamos la caché
         if (menuData && menuData._fromCache) {
           console.log('Usando datos en caché debido a error del servidor');
