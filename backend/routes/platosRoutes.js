@@ -4,7 +4,7 @@ const { Plato, Usuario, Restaurante } = require('../models');
 const { sequelize, closeConnection } = require('../config/database');
 const { Op } = require('sequelize');
 const { models } = require('../models');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middleware/authMiddleware';
 
 /**
  * Middleware para verificar acceso a restaurante
@@ -259,9 +259,11 @@ router.get('/menu/:id', async (req, res) => {
     }
     
     // Buscar el restaurante por el enlace compartido
+    console.log('Iniciando búsqueda del restaurante en la base de datos...');
     const restaurante = await Restaurante.findOne({
       where: { enlace_compartido: menuId }
     });
+    console.log('Resultado de la búsqueda del restaurante:', restaurante ? restaurante.toJSON() : 'No encontrado');
     
     if (!restaurante) {
       console.log(`No se encontró restaurante con enlace compartido: ${menuId}`);
