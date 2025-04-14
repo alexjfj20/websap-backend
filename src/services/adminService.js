@@ -110,9 +110,21 @@ export async function getMenuItems() {
       };
     }
     
-    // En producción, hacer la llamada a la API real
-    const response = await apiService.get('/admin/menu-items');
-    return response;
+    // En producción, intentar hacer la llamada a la API real
+    try {
+      const response = await apiService.get('/admin/menu-items');
+      return response;
+    } catch (apiError) {
+      // Si hay un error de CORS u otro error de red en producción,
+      // usamos los datos locales como fallback
+      console.warn('Error al conectar con la API remota, utilizando datos locales como fallback:', apiError);
+      const menuItems = await storageService.getMenuItems();
+      return {
+        success: true,
+        data: menuItems,
+        fromLocalStorage: true
+      };
+    }
   } catch (error) {
     console.error('Error al obtener elementos del menú:', error);
     return {

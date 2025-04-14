@@ -7,6 +7,8 @@ const allowedOrigins = [
   'http://allseo.xyz/websap',
   'http://localhost:8080',
   'http://localhost:3000',
+  'https://websap-backend.onrender.com',
+  'http://websap-backend.onrender.com',
   'https://webapp_backend.onrender.com',
   'http://webapp_backend.onrender.com'
 ];

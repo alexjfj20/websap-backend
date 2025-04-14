@@ -4,6 +4,10 @@ import apiConfig from '../config/apiConfig';
 // Configuración de API con URL base
 const API_BASE_URL = apiConfig.API_URL;
 
+// Variable global para trackear el conteo actualizado de usuarios
+let currentUserCount = 0;
+let lastUserCountUpdate = null;
+
 // Configuración de IndexedDB
 const DB_NAME = 'websap-admin-db';
 const DB_VERSION = 1;
@@ -146,7 +150,8 @@ const getFromIndexedDB = async (storeName) => {
 };
 
 // Obtener usuarios con la estrategia de tres niveles
-export const getUsers = async (params = {}) => {  try {
+export const getUsers = async (params = {}) => {
+  try {
     console.log('Intentando obtener usuarios de la API...');
     // 1. Intentar obtener de la API usando la URL base configurada
     const url = `${API_BASE_URL}/admin/usuarios`;
@@ -156,6 +161,11 @@ export const getUsers = async (params = {}) => {  try {
     if (response.data && Array.isArray(response.data.data)) {
       // Guardar datos en IndexedDB para uso offline
       await saveToIndexedDB(STORE_USERS, response.data.data);
+      
+      // Actualizar conteo global de usuarios
+      currentUserCount = response.data.data.length;
+      lastUserCountUpdate = new Date();
+      console.log(`Contador de usuarios actualizado: ${currentUserCount}`);
       
       return {
         success: true,
@@ -242,6 +252,52 @@ export const getUsers = async (params = {}) => {  try {
         source: 'dummy'
       };
     }
+  }
+};
+
+// Obtener el conteo actualizado de usuarios
+export const getUserCount = async () => {
+  try {
+    // Si tenemos un conteo reciente (menos de 5 minutos), devolverlo
+    if (currentUserCount > 0 && lastUserCountUpdate) {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      if (lastUserCountUpdate > fiveMinutesAgo) {
+        console.log(`Devolviendo conteo en caché: ${currentUserCount} usuarios`);
+        return {
+          success: true,
+          count: currentUserCount,
+          source: 'cached'
+        };
+      }
+    }
+    
+    // Si no tenemos un conteo reciente, obtener usuarios y contar
+    const usersResponse = await getUsers();
+    
+    if (usersResponse.success && Array.isArray(usersResponse.data)) {
+      currentUserCount = usersResponse.data.length;
+      lastUserCountUpdate = new Date();
+      console.log(`Conteo actualizado: ${currentUserCount} usuarios`);
+      
+      return {
+        success: true,
+        count: currentUserCount,
+        source: usersResponse.source || 'api'
+      };
+    }
+    
+    return {
+      success: false,
+      count: 0,
+      message: 'No se pudo obtener el conteo de usuarios'
+    };
+  } catch (error) {
+    console.error('Error al obtener conteo de usuarios:', error);
+    return {
+      success: false,
+      count: 0,
+      message: 'Error al obtener conteo de usuarios'
+    };
   }
 };
 
@@ -429,6 +485,61 @@ export const deleteUser = async (userId) => {
   } catch (error) {
     console.error('Error al eliminar usuario:', error);
     throw error;
+  }
+};
+
+// Obtener datos del dashboard con conteo actualizado de usuarios
+export const obtenerDatosDashboard = async () => {
+  try {
+    console.log('Obteniendo datos para el dashboard...');
+    
+    // Obtenemos el conteo actualizado de usuarios
+    const userCountResult = await getUserCount();
+    const totalUsuarios = userCountResult.success ? userCountResult.count : 0;
+    
+    console.log(`Dashboard utilizando conteo de usuarios: ${totalUsuarios}`);
+    
+    // Datos simulados para el dashboard
+    return {
+      success: true,
+      data: {
+        estadisticas: {
+          totalUsuarios: totalUsuarios,
+          totalRestaurantes: 35,
+          totalPedidos: 128,
+          totalVentas: 4750000
+        },
+        graficoVentas: [
+          { mes: 'Ene', ventas: 450000 },
+          { mes: 'Feb', ventas: 520000 },
+          { mes: 'Mar', ventas: 480000 },
+          { mes: 'Abr', ventas: 620000 },
+          { mes: 'May', ventas: 580000 },
+          { mes: 'Jun', ventas: 630000 }
+        ],
+        restaurantesPopulares: [
+          { nombre: 'Restaurante A', pedidos: 42 },
+          { nombre: 'Restaurante B', pedidos: 38 },
+          { nombre: 'Restaurante C', pedidos: 27 },
+          { nombre: 'Restaurante D', pedidos: 21 },
+          { nombre: 'Restaurante E', pedidos: 18 }
+        ],
+        usuariosActivos: [
+          { nombre: 'Juan Pérez', rol: 'Administrador', ultimoAcceso: new Date().toISOString() },
+          { nombre: 'María López', rol: 'Empleado', ultimoAcceso: new Date().toISOString() },
+          { nombre: 'Carlos Rodríguez', rol: 'Empleado', ultimoAcceso: new Date().toISOString() }
+        ],
+        fechaActualizacion: new Date().toISOString()
+      },
+      message: 'Datos del dashboard obtenidos correctamente'
+    };
+  } catch (error) {
+    console.error('Error al obtener datos del dashboard:', error);
+    return {
+      success: false,
+      message: 'Error al obtener datos del dashboard',
+      error: error.message
+    };
   }
 };
 
