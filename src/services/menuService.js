@@ -232,7 +232,7 @@ export async function getSharedMenu(menuId) {
           throw new Error('Sin conexión real al servidor');
         }
         
-        // Modificar la lógica para priorizar el servidor en URLs públicas
+        // Ajustar la lógica para manejar mejor los errores en URLs públicas
         if (!menuData || window.location.href.includes('/websap/menu/')) {
           try {
             console.log('Intentando recuperar menú desde el servidor...');
@@ -242,9 +242,13 @@ export async function getSharedMenu(menuId) {
               console.log('Menú recuperado desde el servidor:', menuData);
             } else {
               console.warn('No se pudo recuperar el menú desde el servidor:', response);
+              throw new Error('No se pudo obtener el menú desde el servidor.');
             }
           } catch (serverError) {
             console.error('Error al recuperar el menú desde el servidor:', serverError);
+            if (!menuData) {
+              throw new Error('No se pudo obtener el menú desde el servidor y no hay datos en caché.');
+            }
           }
         }
 
