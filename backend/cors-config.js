@@ -6,7 +6,9 @@ const allowedOrigins = [
   'https://allseo.xyz/websap',
   'http://allseo.xyz/websap',
   'http://localhost:8080',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'https://webapp_backend.onrender.com',
+  'http://webapp_backend.onrender.com'
 ];
 
 const corsOptions = {
