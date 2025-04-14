@@ -45,6 +45,10 @@ app.use((err, req, res, next) => {
 app.use('/api/sync', syncRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 
+// Registrar las rutas de prueba
+testRoutes = require('./routes/testRoutes');
+app.use('/api', testRoutes);
+
 // Puerto para el servidor
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
