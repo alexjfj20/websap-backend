@@ -508,6 +508,7 @@ import { jsPDF } from 'jspdf';
 import qrcode from 'qrcode';
 import apiConfig from '../config/apiConfig';
 import { getBusinessInfo, getMenuItems, getSoldItems } from '../services/storageService';
+import { saveMenu } from '../services/menuService';
 
 // ...existing code...
 
