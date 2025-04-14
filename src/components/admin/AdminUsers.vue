@@ -231,6 +231,7 @@ import adminService from '@/services/adminDashboardService';
 import { ref, computed, onMounted } from 'vue';
 import { getCurrentUser, hasRole } from '@/services/authService';
 import { alert, confirm } from '@/services/dialogService';
+import { getUsers, getRoles, createUser, updateUser, cambiarEstadoUsuario, deleteUser } from '@/services/adminDashboardService';
 
 export default {
   name: 'AdminUsers',

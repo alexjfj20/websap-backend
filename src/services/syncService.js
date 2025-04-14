@@ -112,49 +112,129 @@ const setupConnectionListeners = () => {
 };
 
 // Función para probar la conexión con el servidor (modo ultra-ligero)
+// Función para intentar conexión en modo no-cors (evita errores CORS pero con limitaciones)
+const tryFetchNoCors = async (url) => {
+  console.log('🔄 Intentando conexión en modo no-cors:', url);
+  
+  return new Promise((resolve) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.warn('⏱️ Timeout en la prueba no-cors');
+      controller.abort();
+      resolve(false);
+    }, 5000);
+    
+    fetch(url, {
+      method: 'GET',
+      mode: 'no-cors', // Importante: en este modo no podemos leer la respuesta
+      credentials: 'omit',
+      cache: 'no-store',
+      signal: controller.signal
+    })
+    .then(() => {
+      // En modo no-cors, cualquier respuesta que no sea un error de red
+      // se considera exitosa, aunque no podamos leer su contenido
+      clearTimeout(timeoutId);
+      console.log('✅ Conexión no-cors establecida');
+      resolve(true);
+    })
+    .catch(error => {
+      clearTimeout(timeoutId);
+      console.error('❌ Error en modo no-cors:', error.message);
+      resolve(false);
+    });
+  });
+};
+
+// Función para probar puertos alternativos (3000, 5000, 8000)
+const checkAlternativePort = async () => {
+  console.log('🔄 Probando puertos alternativos...');
+  
+  // Extraer el dominio de la URL actual
+  const apiUrl = getApiUrls().API_URL;
+  const urlObj = new URL(apiUrl);
+  const domain = urlObj.hostname;
+  
+  // Lista de puertos comunes para desarrollo
+  const commonPorts = [3000, 5000, 8000];
+  
+  for (const port of commonPorts) {
+    const testUrl = `${urlObj.protocol}//${domain}:${port}/api/test/ping`;
+    console.log(`🔄 Probando puerto alternativo: ${testUrl}`);
+    
+    try {
+      const response = await fetch(testUrl, {
+        method: 'GET',
+        mode: 'no-cors',
+        credentials: 'omit',
+        timeout: 2000 // Tiempo corto para cada puerto
+      });
+      
+      if (response) {
+        console.log(`✅ Puerto alternativo ${port} responde`);
+        // Guardar esta URL como alternativa
+        localStorage.setItem('apiUrl', `${urlObj.protocol}//${domain}:${port}`);
+        return true;
+      }
+    } catch (error) {
+      console.log(`❌ Puerto ${port} no disponible`);
+    }
+  }
+  
+  console.log('❌ No se encontraron puertos alternativos disponibles');
+  return false;
+};
+
 const testServerConnection = async () => {
   console.log('🔄 Probando conexión con el servidor (modo emergencia)...');
   
   try {
-    // Usar XMLHttpRequest sin cookies ni headers personalizados
-    const xhr = new XMLHttpRequest();
+    // Usar fetch API que maneja mejor CORS
+    const urls = getApiUrls();
+    const pingURL = `${urls.API_URL}/test/ping`;
+    console.log(`🔄 Probando conexión a: ${pingURL}`);
     
     const responsePromise = new Promise((resolve) => {
+      // Configurar timeout
+      const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         console.warn('⏱️ Timeout en la prueba de conexión');
-        xhr.abort();
+        controller.abort();
         resolve(false);
-      }, 5000);
+      }, 8000);
       
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
-          clearTimeout(timeoutId);
-          if (xhr.status >= 200 && xhr.status < 300) {
-            console.log('✅ Conexión básica establecida');
-            resolve(true);
-          } else if (xhr.status === 431) {
-            console.error('❌ Error 431: Request Header Fields Too Large');
-            console.log('👉 Necesitas reducir el tamaño de las cookies o headers');
-            resolve(false);
+      // Usar fetch con modo no-cors como fallback
+      fetch(pingURL, {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit', // No enviar cookies
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        signal: controller.signal
+      })
+      .then(response => {
+        clearTimeout(timeoutId);
+        if (response.ok) {
+          console.log('✅ Conexión básica establecida');
+          resolve(true);
+        } else {
+          console.log(`⚠️ Respuesta no OK: ${response.status}`);
+          // Si es un error CORS, intentar en modo no-cors
+          if (response.status === 0 || response.status === 403) {
+            tryFetchNoCors(pingURL).then(resolve);
           } else {
-            console.error(`❌ Error en prueba de conexión: ${xhr.status}`);
             resolve(false);
           }
         }
-      };
-      
-      xhr.onerror = function() {
+      })
+      .catch(error => {
         clearTimeout(timeoutId);
-        console.error('❌ Error de red en prueba de conexión');
+        console.error('❌ Error de red en prueba de conexión:', error.message);
         // Intentar con endpoint de emergencia sin headers
         checkAlternativePort().then(resolve);
-      };
-      
-      // Realizar una solicitud GET simple sin headers
-      xhr.open('GET', `${API_URL}/test/ping`, true);
-      // No añadir ningún header
-      xhr.withCredentials = false; // Importante: evitar enviar cookies
-      xhr.send();
+      });
     });
     
     return await responsePromise;
@@ -164,9 +244,9 @@ const testServerConnection = async () => {
   }
 };
 
-// Comprobar puerto alternativo
-const checkAlternativePort = async () => {
-  console.log('🔄 Probando puertos alternativos...');
+// Comprobar puerto alternativo (implementación secundaria)
+const checkAlternativePort2 = async () => {
+  console.log('🔄 Probando puertos alternativos (segundo método)...');
   
   // Lista de puertos comunes para probar
   const ports = [8080, 3000, 5000, 8000];

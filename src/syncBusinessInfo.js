@@ -4,6 +4,9 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
+// Importar la función getBusinessInfo del servicio de almacenamiento
+import { getBusinessInfo } from './services/storageService';
+
 // Importar configuración (para entorno Node.js)
 const apiConfig = require('./config/apiConfig').default;
 
