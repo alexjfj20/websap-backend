@@ -267,8 +267,10 @@ router.get('/menu/:id', async (req, res) => {
     
     if (!restaurante) {
       console.log(`No se encontró restaurante con enlace compartido: ${menuId}`);
-      // Si no se encuentra el restaurante, continuar con la lógica actual
-      // para mantener la compatibilidad con enlaces antiguos
+      return res.status(404).json({
+        success: false,
+        message: 'Restaurante no encontrado'
+      });
     }
     
     try {
