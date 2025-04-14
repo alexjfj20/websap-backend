@@ -1,7 +1,8 @@
 const fetch = require('node-fetch');
 
 (async () => {
-  const serverUrl = 'https://websap-backend.onrender.com/api/ping'; // URL del backend en Render
+  const menuId = 'mp5ikae2iwfm1sk9'; // Ejemplo de ID de menú público
+  const serverUrl = `https://websap-backend.onrender.com/api/platos/menu/${menuId}`; // Endpoint para obtener el menú público
 
   try {
     console.log(`Intentando conectar con el servidor en: ${serverUrl}`);
