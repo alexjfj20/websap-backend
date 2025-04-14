@@ -59,29 +59,34 @@ const dummyRoles = [
   { id: 3, nombre: 'Empleado', descripcion: 'Operaciones básicas' }
 ];
 
-// Función para inicializar la base de datos
+// Verificar y crear almacenes necesarios al inicializar la base de datos
+const ensureStoresExist = (db) => {
+  if (!db.objectStoreNames.contains(STORE_USERS)) {
+    db.createObjectStore(STORE_USERS, { keyPath: 'id' });
+    console.log(`Almacén '${STORE_USERS}' creado.`);
+  }
+  if (!db.objectStoreNames.contains(STORE_ROLES)) {
+    db.createObjectStore(STORE_ROLES, { keyPath: 'id' });
+    console.log(`Almacén '${STORE_ROLES}' creado.`);
+  }
+};
+
+// Modificar initDB para garantizar la creación de almacenes
 const initDB = () => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    
+
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
-      
-      // Crear almacenes si no existen
-      if (!db.objectStoreNames.contains(STORE_USERS)) {
-        db.createObjectStore(STORE_USERS, { keyPath: 'id' });
-      }
-      
-      if (!db.objectStoreNames.contains(STORE_ROLES)) {
-        db.createObjectStore(STORE_ROLES, { keyPath: 'id' });
-      }
+      ensureStoresExist(db);
     };
-    
+
     request.onsuccess = (event) => {
       const db = event.target.result;
+      ensureStoresExist(db); // Verificar almacenes en caso de que no se hayan creado
       resolve(db);
     };
-    
+
     request.onerror = (event) => {
       console.error('Error al abrir IndexedDB:', event.target.error);
       reject(event.target.error);

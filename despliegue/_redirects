@@ -1,0 +1,25 @@
+/*
+* Este archivo asegura que las rutas en tu aplicación SPA de Vue funcionen correctamente
+* cuando se despliega como un sitio estático en Render.com
+*/
+
+/* Redirige todas las rutas no encontradas a index.html para manejarlas con Vue Router */
+/* @see https://render.com/docs/deploy-spa */
+
+/* Reglas de redirección específicas para rutas exactas (sin trailing slash) */
+/websap/admin      /websap/index.html   200
+/websap/menu       /websap/index.html   200
+/websap/login      /websap/index.html   200
+/websap/profile    /websap/index.html   200
+/websap/settings   /websap/index.html   200
+
+/* Reglas de redirección específicas para subsecciones principales (con wildcard) */
+/websap/admin/*    /websap/index.html   200
+/websap/menu/*     /websap/index.html   200
+/websap/login/*    /websap/index.html   200
+/websap/profile/*  /websap/index.html   200
+/websap/settings/* /websap/index.html   200
+
+/* Regla de redirección principal para SPA */
+/websap/*    /websap/index.html   200
+/*    /index.html   200
