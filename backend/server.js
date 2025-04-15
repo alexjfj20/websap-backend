@@ -113,6 +113,20 @@ app.get('/api/test/ping', (req, res) => {
   });
 });
 
+// Ruta de prueba específica para CORS
+app.get('/cors-test', (req, res) => {
+  res.status(200).json({ 
+    message: 'CORS está configurado correctamente',
+    origin: req.headers.origin || 'No origin header',
+    timestamp: new Date().toISOString(),
+    headers: {
+      'access-control-allow-origin': res.getHeader('Access-Control-Allow-Origin'),
+      'access-control-allow-methods': res.getHeader('Access-Control-Allow-Methods'),
+      'access-control-allow-headers': res.getHeader('Access-Control-Allow-Headers')
+    }
+  });
+});
+
 // Endpoint para verificar BD
 app.get('/api/test/db', async (req, res) => {
   try {
