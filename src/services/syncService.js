@@ -166,8 +166,8 @@ const checkAlternativePort = async () => {
       const response = await fetch(testUrl, {
         method: 'GET',
         mode: 'no-cors',
-        credentials: 'omit',
-        timeout: 2000 // Tiempo corto para cada puerto
+        cache: 'no-store',
+        credentials: 'omit'
       });
       
       if (response) {
@@ -276,7 +276,6 @@ const checkAlternativePort2 = async () => {
   return false;
 };
 
-// Función para probar la conexión a MySQL
 const testMySQLConnection = async () => {
   console.log('🔄 Probando conexión a MySQL...');
   
@@ -310,14 +309,9 @@ const testMySQLConnection = async () => {
 };
 
 // Función para sincronizar datos entre IndexedDB y el servidor
-const syncData = async () => {
-  if (!await isOnline()) {
-    console.log('Sin conexión a Internet, la sincronización no es posible');
-    return false;
-  }
-  
+async function syncData() {
   if (isSyncing) {
-    console.log('Ya hay una sincronización en progreso');
+    console.log('🔄 Ya hay una sincronización en curso');
     return false;
   }
   
@@ -326,36 +320,42 @@ const syncData = async () => {
   console.log('🔄 Iniciando sincronización de datos...');
   
   try {
-    // Procesar la cola de sincronización
-    const syncQueue = await getSyncQueue();
-    console.log(`📋 Cola de sincronización: ${syncQueue.length} elementos`);
-    
-    for (const item of syncQueue) {
-      if (item.entityType === 'plato') {
-        // Obtener el plato completo de IndexedDB
-        const plato = await getPlato(item.entityId);
-        
-        if (plato) {
-          console.log(`🍽️ Sincronizando plato: ${plato.name} (${plato.id})`);
+    // Verificar si la cola de sincronización existe antes de intentar acceder a ella
+    try {
+      // Procesar la cola de sincronización
+      const syncQueue = await getSyncQueue();
+      console.log(`📋 Cola de sincronización: ${syncQueue.length} elementos`);
+      
+      for (const item of syncQueue) {
+        if (item.entityType === 'plato') {
+          // Obtener el plato completo de IndexedDB
+          const plato = await getPlato(item.entityId);
           
-          try {
-            // Intentar sincronización minimalista
-            const success = await syncPlato(plato);
+          if (plato) {
+            console.log(`🍽️ Sincronizando plato: ${plato.name} (${plato.id})`);
             
-            if (success.success) {
-              console.log(`✅ Plato ${plato.id} sincronizado correctamente`);
-              await removeFromSyncQueue(item.id);
-            } else {
-              console.error(`❌ Error al sincronizar plato ${plato.id}`);
+            try {
+              // Intentar sincronización minimalista
+              const success = await syncPlato(plato);
+              
+              if (success.success) {
+                console.log(`✅ Plato ${plato.id} sincronizado correctamente`);
+                await removeFromSyncQueue(item.id);
+              } else {
+                console.error(`❌ Error al sincronizar plato ${plato.id}`);
+              }
+            } catch (syncError) {
+              console.error(`❌ Error durante la sincronización del plato ${plato.id}:`, syncError);
             }
-          } catch (syncError) {
-            console.error(`❌ Excepción al sincronizar plato ${plato.id}:`, syncError);
+          } else {
+            console.warn(`⚠️ No se encontró el plato ${item.entityId} en IndexedDB`);
+            await removeFromSyncQueue(item.id);
           }
-        } else {
-          console.warn(`⚠️ Plato ${item.entityId} no encontrado en IndexedDB`);
-          await removeFromSyncQueue(item.id);
         }
       }
+    } catch (queueError) {
+      console.warn('⚠️ Error al acceder a la cola de sincronización. Posiblemente no existe el almacén:', queueError);
+      console.log('🔄 Continuando con la sincronización sin procesar la cola...');
     }
     
     // Buscar platos pendientes que no estén en la cola
@@ -440,7 +440,7 @@ const tryUltraMinimalSync = async (data, platoId) => {
     const adaptedData = await adaptPlatoDataWithImageOptimization(data);
     const minimalData = {
       id: adaptedData.id,
-      name: (adaptedData.name || "").substring(0, 30),
+      name: adaptedData.name?.substring(0, 30),
       price: Number(adaptedData.price) || 0
     };
     

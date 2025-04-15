@@ -16,11 +16,10 @@
     </div>
     
     <!-- Link compartido -->
-    <p v-if="shareLink" class="shared-link">
-      Enlace para compartir: <a :href="shareLink" target="_blank">{{ shareLink }}</a>
+    <p v-if="publicMenuUrl" class="shared-link">
+      Enlace para compartir: <a :href="publicMenuUrl" target="_blank">{{ publicMenuUrl }}</a>
     </p>
 
-    {{ console.log('specialMenuItems justo antes de la sección:', specialMenuItems) }}
     <!-- SECCIÓN: PLATOS ESPECIALES -->
     <section class="menu-section" v-if="specialMenuItems.length > 0">
       <h3>Platos Especiales</h3>
@@ -131,8 +130,6 @@
 </template>
 
 <script>
-import { saveMenu, getMenu } from '../services/menuService';
-import { formatOrderMessage, formatShareLinkMessage } from '../utils/messageFormatter';
 import { getMenuItems, getBusinessInfo } from '../services/storageService';
 import { confirm } from '../services/dialogService';
 
@@ -140,11 +137,9 @@ export default {
   name: 'ShareMenuComponent',
   data() {
     return {
-      shareLink: '',
       menuItems: [],
       specialMenuItems: [],
       orderItems: [],
-      showCopiedMessage: false,
       contactInfo: {
         name: '',
         phone: '',
@@ -152,159 +147,50 @@ export default {
         email: '',
         notes: ''
       },
-      businessInfo: {}
+      businessInfo: {},
+      restaurantId: '', // ID o slug del restaurante
+      showCopiedMessage: false,
+      itemQuantities: {},
     };
   },
   computed: {
     allMenuItems() {
-      const combinedItems = [...this.menuItems, ...this.specialMenuItems];
-      console.log(`Mostrando ${combinedItems.length} platos (${this.menuItems.length} regulares y ${this.specialMenuItems.length} especiales)`);
-      return combinedItems;
+      return this.menuItems.filter(item => !item.isSpecial);
+    },
+    publicMenuUrl() {
+      // Usar la URL de origen actual para generar la URL del menú compartido
+      // Esto asegura que funcione tanto en desarrollo como en producción
+      const origin = window.location.origin;
+      return `${origin}/menu/1`;
     }
   },
-  async mounted() {
-    try {
-      const menuId = this.$route.params.id;
-      console.log('menuId:', menuId);
-      let items = [];
-      
-      if (menuId) {
-        console.log('Cargando menú compartido con ID:', menuId);
-        try {
-          const sharedMenu = await getMenu(menuId);
-          console.log('sharedMenu:', sharedMenu);
-          if (sharedMenu && Array.isArray(sharedMenu)) {
-            // Añadir logs detallados para depuración
-            console.log('Detalle de los platos compartidos antes de procesar:');
-            sharedMenu.forEach((item, index) => {
-              console.log(`Plato ${index}: ${item.name}, isSpecial=${item.isSpecial}, tipo=${typeof item.isSpecial}`);
-            });
-            
-            items = sharedMenu;
-            console.log('Menú compartido cargado correctamente:', items.length, 'platos');
-          }
-        } catch (menuError) {
-          console.error('Error al cargar menú compartido:', menuError);
-        }
-      } else {
-        console.log('Cargando menú desde IndexedDB');
-        items = await getMenuItems();
-        console.log('items desde getMenuItems:', items);
-      }
-      
-      console.log('items antes del filtrado:', items);
-      if (Array.isArray(items) && items.length > 0) {
-        // Normalizar la propiedad isSpecial para todos los ítems
-        const processedItems = items.map(item => {
-          // Si la propiedad no existe, asumimos que es un ítem regular
-          if (item.isSpecial === undefined) {
-            console.log(`Ítem ${item.name} no tiene propiedad isSpecial, asignando false`);
-            return { ...item, isSpecial: false };
-          }
-          
-          // Normalizar el valor a booleano, considerando diferentes formatos
-          const normalizedIsSpecial = 
-            item.isSpecial === true || 
-            item.isSpecial === 'true' || 
-            item.isSpecial === 1 || 
-            item.isSpecial === '1';
-          
-          if (typeof item.isSpecial !== 'boolean') {
-            console.log(`Convertido isSpecial para ${item.name}: ${item.isSpecial} (${typeof item.isSpecial}) → ${normalizedIsSpecial}`);
-          }
-          
-          return { ...item, isSpecial: normalizedIsSpecial };
-        });
-        
-        // Filtrar usando los valores normalizados
-        this.menuItems = processedItems.filter(item => !item.isSpecial);
-        this.specialMenuItems = processedItems.filter(item => item.isSpecial);
-        this.$forceUpdate();
-        console.log(`Cargados ${this.menuItems.length} platos regulares y ${this.specialMenuItems.length} platos especiales`);
-      } else {
-        console.log('No se encontraron elementos del menú');
-      }
-      
-      const info = await getBusinessInfo();
-      if (info && Object.keys(info).length > 0) {
-        this.businessInfo = info;
-      } else {
-        console.log('No se encontró información de negocio en IndexedDB');
-      }
-    } catch (error) {
-      console.error('Error al cargar datos:', error);
-    }
+  mounted() {
+    // Cargar los elementos del menú
+    this.loadMenuItems();
+    
+    // Obtener información del negocio
+    this.loadBusinessInfo();
+    
+    // Obtener el ID o slug del restaurante
+    this.getRestaurantId();
   },
   methods: {
-    async shareByWhatsApp() {
+    // Compartir menú por WhatsApp de forma simplificada
+    shareByWhatsApp() {
       try {
-        // Incluir tanto platos regulares como especiales al compartir
-        const allItems = [...this.menuItems, ...this.specialMenuItems];
-        
-        // Asegurar que isSpecial sea un valor booleano explícito
-        const itemsToShare = allItems.map(item => {
-          // Asegurar que isSpecial sea un valor booleano explícito
-          const isSpecialValue = 
-            item.isSpecial === true || 
-            item.isSpecial === 'true' || 
-            item.isSpecial === 1 || 
-            item.isSpecial === '1';
-          
-          console.log(`Preparando ${item.name} para compartir, isSpecial original=${item.isSpecial}, normalizado=${isSpecialValue}`);
-          
-          return {
-            ...item,
-            isSpecial: isSpecialValue, // Asegurar que sea boolean
-            id: item.id || Date.now() + Math.random().toString(36).substring(2, 10)
-          };
-        });
-        
-        console.log(`Compartiendo ${itemsToShare.length} platos por WhatsApp`);
-        const menuId = await saveMenu(itemsToShare);
-        this.shareLink = `${window.location.origin}/menu/${menuId}`;
-        
-        if (typeof formatShareLinkMessage !== 'function') {
-          console.error('formatShareLinkMessage no es una función', formatShareLinkMessage);
-          throw new Error('La función de formato de mensaje no está disponible');
-        }
-        
-        const message = formatShareLinkMessage(this.shareLink, this.businessInfo.name);
-        
-        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+        const message = `¡Hola! Aquí puedes ver nuestro menú digital 📋🍽️:\n${this.publicMenuUrl}\n¡Haz tu pedido por aquí mismo!`;
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
       } catch (error) {
         console.error('Error al compartir por WhatsApp:', error);
-        alert('Error al compartir el menú. Por favor, intenta reducir el tamaño de las imágenes o eliminar algunos ítems.');
+        alert('Error al compartir el menú. Por favor, intenta de nuevo.');
       }
     },
-    async copyLink() {
+    
+    // Copiar enlace al portapapeles de forma simplificada
+    copyLink() {
       try {
-        // Incluir tanto platos regulares como especiales al compartir
-        const allItems = [...this.menuItems, ...this.specialMenuItems];
-        
-        // Asegurar que isSpecial sea un valor booleano explícito
-        const itemsToShare = allItems.map(item => {
-          // Asegurar que isSpecial sea un valor booleano explícito
-          const isSpecialValue = 
-            item.isSpecial === true || 
-            item.isSpecial === 'true' || 
-            item.isSpecial === 1 || 
-            item.isSpecial === '1';
-          
-          console.log(`Preparando ${item.name} para compartir, isSpecial original=${item.isSpecial}, normalizado=${isSpecialValue}`);
-          
-          return {
-            ...item,
-            isSpecial: isSpecialValue, // Asegurar que sea boolean
-            id: item.id || Date.now() + Math.random().toString(36).substring(2, 10)
-          };
-        });
-        
-        console.log(`Generando enlace para compartir ${itemsToShare.length} platos`);
-        const menuId = await saveMenu(itemsToShare);
-        this.shareLink = `${window.location.origin}/menu/${menuId}`;
-        
-        navigator.clipboard.writeText(this.shareLink)
+        navigator.clipboard.writeText(this.publicMenuUrl)
           .then(() => {
             this.showCopiedMessage = true;
             setTimeout(() => {
@@ -316,8 +202,92 @@ export default {
             alert('No se pudo copiar el enlace. Por favor, inténtalo de nuevo.');
           });
       } catch (error) {
-        console.error('Error al generar enlace para compartir:', error);
-        alert('Error al generar el enlace. Por favor, intenta reducir el tamaño de las imágenes o eliminar algunos ítems.');
+        console.error('Error al copiar enlace:', error);
+        alert('Error al copiar el enlace. Por favor, intenta de nuevo.');
+      }
+    },
+    
+    // Obtener el ID o slug del restaurante
+    async getRestaurantId() {
+      try {
+        console.log('Obteniendo ID del restaurante...');
+        
+        // Obtener el ID del restaurante del usuario actual
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.warn('No hay token de autenticación');
+          // Usar un ID predeterminado para pruebas si no hay token
+          this.restaurantId = 'restaurante-demo';
+          console.log('Usando ID predeterminado:', this.restaurantId);
+          return;
+        }
+        
+        // Importar apiService dinámicamente para evitar dependencias circulares
+        const apiServiceModule = await import('../services/apiService');
+        const apiService = apiServiceModule.default;
+        apiService.setToken(token);
+        
+        console.log('Solicitando información del usuario...');
+        const userResponse = await apiService.get('/auth/me');
+        console.log('Respuesta del usuario:', userResponse);
+        
+        if (!userResponse || !userResponse.success || !userResponse.user) {
+          console.warn('No se pudo obtener información del usuario');
+          this.restaurantId = 'restaurante-demo';
+          return;
+        }
+        
+        if (!userResponse.user.restaurante_id) {
+          console.warn('El usuario no tiene un restaurante asociado');
+          
+          // Intentar obtener el primer restaurante disponible
+          console.log('Intentando obtener lista de restaurantes...');
+          const restaurantesResponse = await apiService.get('/restaurantes');
+          console.log('Respuesta de restaurantes:', restaurantesResponse);
+          
+          if (restaurantesResponse && restaurantesResponse.success && 
+              restaurantesResponse.restaurantes && restaurantesResponse.restaurantes.length > 0) {
+            this.restaurantId = restaurantesResponse.restaurantes[0].id.toString();
+            console.log('Usando primer restaurante disponible:', this.restaurantId);
+          } else {
+            this.restaurantId = '1'; // ID predeterminado como último recurso
+            console.log('Usando ID predeterminado 1');
+          }
+          return;
+        }
+        
+        this.restaurantId = userResponse.user.restaurante_id.toString();
+        console.log('ID del restaurante obtenido:', this.restaurantId);
+      } catch (error) {
+        console.error('Error al obtener ID del restaurante:', error);
+        // En caso de error, usar un ID predeterminado
+        this.restaurantId = '1';
+        console.log('Usando ID predeterminado 1 debido a error');
+      }
+    },
+    
+    // Cargar elementos del menú
+    async loadMenuItems() {
+      try {
+        const items = await getMenuItems();
+        if (items && items.length) {
+          this.menuItems = items.filter(item => !item.isSpecial);
+          this.specialMenuItems = items.filter(item => item.isSpecial);
+        }
+      } catch (error) {
+        console.error('Error al cargar elementos del menú:', error);
+      }
+    },
+    
+    // Cargar información del negocio
+    async loadBusinessInfo() {
+      try {
+        const info = await getBusinessInfo();
+        if (info) {
+          this.businessInfo = info;
+        }
+      } catch (error) {
+        console.error('Error al cargar información del negocio:', error);
       }
     },
     getItemQuantity(item) {
@@ -391,13 +361,7 @@ export default {
       
       if (!confirmed) return;
       
-      const message = formatOrderMessage({
-        customer: this.contactInfo,
-        businessName: this.businessInfo.name,
-        orderItems: this.orderItems,
-        total: this.calculateTotal(),
-        notes: this.contactInfo.notes
-      });
+      const message = `¡Hola! Aquí tienes mi pedido:\n${this.orderItems.map(item => `${item.name} x${item.quantity}`).join('\n')}\nTotal: ${this.formatPrice(this.calculateTotal())}\n${this.contactInfo.notes}`;
       
       let phoneNumber = '';
       

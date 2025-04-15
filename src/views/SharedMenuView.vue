@@ -1,5 +1,5 @@
 <template>
-  <div class="shared-menu-container" :id="menuId">
+  <div class="shared-menu-container" :id="restauranteId">
     <div v-if="isLoading" class="loading">
       <div class="spinner"></div>
       <p>Cargando menú...</p>
@@ -208,11 +208,12 @@
           </div>
         </div>
         
-        <!-- Añadir el componente ReservaForm en una sección visible -->
+        <!-- Comentado temporalmente hasta que el componente ReservaForm esté disponible
         <div class="reserva-section container mt-5">
           <h3 class="text-center mb-4">¿Quieres hacer una reserva?</h3>
           <ReservaForm />
         </div>
+        -->
         
         <!-- Sistema de notificaciones toast -->
         <div v-if="toast.visible" 
@@ -226,221 +227,200 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, reactive, onUnmounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { getSharedMenu } from '../services/menuService';
-import { saveReservation } from '../services/reservaService'; // Importamos el servicio de reservas
-import { getMenuItems, updateItemAvailability } from '../services/storageService'; // Importar funciones necesarias
-import ReservaForm from '../components/reservas/ReservaForm.vue';
-import eventBus from '../utils/eventBus';
-import { 
-  fetchBusinessInfoFromBackend, 
-  startBusinessInfoSyncInterval, 
-  stopBusinessInfoSyncInterval 
-} from '../services/businessInfoService';
 
 export default {
   name: 'SharedMenuView',
-  components: {
-    ReservaForm,
-  },
-  props: {
-    // Añade id como prop si lo necesitas
-    id: {
-      type: String,
-      default: ''
-    }
-  },
-  setup(props) {
+  setup() {
     const route = useRoute();
-    const menuId = computed(() => props.id || route.params.id);
-    const menuData = ref({
-      items: [],
-      businessInfo: {
-        name: 'Restaurante WebSAP',
-        description: 'Deliciosa comida para todos los gustos',
-        contact: 'info@websap.com',
-        address: 'Calle Principal #123',
-        logo: null,
-        paymentInfo: {
-          qrImage: null,
-          qrTitle: 'Escanea para pagar',
-          nequiNumber: null,
-          nequiImage: null,
-          bankInfo: 'Banco XYZ - Cuenta 123456789',
-          otherPaymentMethods: 'Aceptamos efectivo y tarjetas'
-        }
-      }
-    });
     const isLoading = ref(true);
     const error = ref(null);
+    const menuData = ref(null);
     const cartItems = ref([]);
-    const orderRef = ref(null);
-    const isProcessingOrder = ref(false);
-    const lastBusinessInfoUpdate = ref(null);
-    
-    console.log("SharedMenuView montado, ID del menú:", route.params.id);
-
-    // Sistema de notificaciones toast
-    const toast = ref({
-      visible: false,
-      message: '',
-      type: 'success', // 'success', 'warning', 'error'
-      timeoutId: null
+    const customerInfo = ref({
+      name: '',
+      phone: '',
+      email: '',
+      address: ''
     });
-
-    // Cargar menú cuando el componente se monte
-    onMounted(() => {
-      loadMenu();
-      
-      // Suscribirse al evento de actualización de información del negocio
-      eventBus.on('business-info-updated', handleBusinessInfoUpdate);
-      
-      // Iniciar la sincronización periódica con parámetro true para desactivarla en vista compartida
-      startBusinessInfoSyncInterval(true);
+    const selectedPaymentMethod = ref('cash'); // Por defecto contra entrega
+    const additionalMessage = ref('');
+    
+    // Obtener el ID del restaurante de la URL
+    const restauranteId = computed(() => {
+      // Usar el ID de la URL o un valor predeterminado
+      return route.params.id || '1';
     });
     
-    // Al desmontar el componente, cancelar suscripciones y detener intervalos
-    onUnmounted(() => {
-      eventBus.off('business-info-updated', handleBusinessInfoUpdate);
-      stopBusinessInfoSyncInterval();
-      
-      // Limpiar timeout del toast si existe
-      if (toast.value.timeoutId) {
-        clearTimeout(toast.value.timeoutId);
-      }
+    // Elementos del menú regulares y especiales
+    const regularItems = computed(() => {
+      if (!menuData.value || !menuData.value.items) return [];
+      return menuData.value.items.filter(item => !item.isSpecial);
     });
     
-    // Manejar la actualización de información del negocio
-    const handleBusinessInfoUpdate = (updatedInfo) => {
-      console.log('Nueva información del negocio recibida en SharedMenuView:', updatedInfo);
-      
-      if (!updatedInfo) return;
-      
-      // Actualizar la información del negocio en menuData
-      menuData.value.businessInfo = {
-        ...updatedInfo
-      };
-      
-      lastBusinessInfoUpdate.value = Date.now();
-      
-      // Mostrar notificación sutil
-      showToast('Información del negocio actualizada', 'info');
-    };
-
-    // Cargar el menú desde la API
-    async function loadMenu() {
+    const specialItems = computed(() => {
+      if (!menuData.value || !menuData.value.items) return [];
+      return menuData.value.items.filter(item => item.isSpecial);
+    });
+    
+    // Total del carrito
+    const cartTotal = computed(() => {
+      return cartItems.value.reduce((total, item) => {
+        return total + (item.price * item.quantity);
+      }, 0);
+    });
+    
+    // Cargar el menú desde la API pública
+    const loadMenu = async () => {
       try {
         isLoading.value = true;
-        error.value = null; // Resetear error al inicio
-        console.log("Cargando menú con ID:", route.params.id);
+        error.value = null;
         
-        if (!route.params.id) {
-          error.value = 'ID de menú no especificado';
+        // Importar la configuración de la API
+        const apiConfig = await import('../config/apiConfig');
+        const API_URL = apiConfig.default.API_URL;
+        console.log('Usando API URL:', API_URL);
+        
+        // Obtener el ID del restaurante de la URL
+        const id = route.params.id;
+        console.log('ID del restaurante desde URL:', id);
+        
+        if (!id) {
+          error.value = 'ID de restaurante no válido';
           isLoading.value = false;
           return;
         }
         
-        // Intenta cargar desde localStorage primero (por si hay un carrito guardado)
-        const savedCart = localStorage.getItem(`cart_${route.params.id}`);
-        if (savedCart) {
-          try {
-            cartItems.value = JSON.parse(savedCart);
-            console.log("Carrito recuperado de localStorage:", cartItems.value);
-          } catch (e) {
-            console.error("Error al parsear carrito de localStorage:", e);
+        // Intentar cargar el menú directamente desde el servidor de producción
+        try {
+          // URL absoluta para asegurar que se use el servidor de producción
+          const prodUrl = 'https://websap-backend.onrender.com/api/menu-publico/1';
+          console.log('Intentando cargar menú desde URL de producción:', prodUrl);
+          
+          const response = await fetch(prodUrl);
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (data.success) {
+              menuData.value = data.menu;
+              console.log('Menú cargado correctamente desde producción:', menuData.value);
+              isLoading.value = false;
+              return;
+            }
           }
+          
+          console.error('Error al cargar desde URL de producción, intentando con API_URL');
+        } catch (prodError) {
+          console.error('Error al cargar desde URL de producción:', prodError);
         }
         
+        // Si falla la carga desde la URL de producción, intentar con API_URL
         try {
-          // Cargar el menú y los items
-          const data = await getSharedMenu(route.params.id);
+          const apiUrl = `${API_URL}/menu-publico/${id}`;
+          console.log('Intentando cargar menú desde API_URL:', apiUrl);
           
-          if (data && data.items) {
-            // Asignar los items al menuData
-            menuData.value.items = data.items;
+          const response = await fetch(apiUrl);
+          
+          if (!response.ok) {
+            console.error('Error en la respuesta de API_URL:', response.status, response.statusText);
             
-            // Intentar cargar la información del negocio desde el backend
-            try {
-              const businessInfo = await fetchBusinessInfoFromBackend();
-              if (businessInfo) {
-                menuData.value.businessInfo = businessInfo;
-                lastBusinessInfoUpdate.value = Date.now();
-                console.log("Información del negocio cargada del backend:", businessInfo);
-              }
-            } catch (businessInfoError) {
-              console.warn("No se pudo cargar información del negocio desde backend:", businessInfoError);
-              // Mantener la información que vino con el menú si existe
-              if (data.businessInfo) {
-                menuData.value.businessInfo = data.businessInfo;
-              }
+            // Intentar con ID 1 como fallback
+            console.log('Intentando cargar menú con ID de fallback: 1');
+            const fallbackResponse = await fetch(`${API_URL}/menu-publico/1`);
+            
+            if (!fallbackResponse.ok) {
+              throw new Error(`Error al cargar el menú con ID de fallback: ${fallbackResponse.status}`);
             }
             
-            console.log("Menú cargado con éxito:", menuData.value);
-            
-            // Inicializar disponibilidad para cada ítem
-            menuData.value.items.forEach(item => {
-              // Si la disponibilidad es explícitamente 0, mantenerla así
-              // Si es undefined o null, usar 0 en lugar de un valor predeterminado de 10
-              item.availableQuantity = item.availableQuantity !== undefined ? 
-                Number(item.availableQuantity) : 0;
-              item.realAvailability = item.availableQuantity;
-            });
-            
-            // Actualizar disponibilidad real considerando el carrito
-            updateAvailabilityInMenu();
-            
-            // Guardar en localStorage como respaldo
-            try {
-              localStorage.setItem(`menu_${route.params.id}`, JSON.stringify(menuData.value));
-            } catch (saveError) {
-              console.warn('No se pudo guardar el menú en localStorage:', saveError);
-            }
-          } else {
-            throw new Error('Datos de menú no válidos');
-          }
-        } catch (apiError) {
-          console.error("Error al cargar el menú desde la API:", apiError);
-          
-          // Intentar recuperar desde localStorage como respaldo
-          try {
-            const cachedMenu = localStorage.getItem(`menu_${route.params.id}`);
-            if (cachedMenu) {
-              menuData.value = JSON.parse(cachedMenu);
-              console.log("Menú recuperado desde localStorage:", menuData.value);
-              
-              if (menuData.value && menuData.value.items) {
-                // Inicializar disponibilidad para cada ítem
-                menuData.value.items.forEach(item => {
-                  item.availableQuantity = item.availableQuantity !== undefined ? 
-                    Number(item.availableQuantity) : 0;
-                  item.realAvailability = item.availableQuantity;
-                });
-                
-                // Actualizar disponibilidad real considerando el carrito
-                updateAvailabilityInMenu();
-                
-                // Mostrar notificación de que se está usando datos en caché
-                showToast('Usando datos almacenados localmente. Algunas funciones pueden estar limitadas.', 'warning');
-              } else {
-                throw new Error('Datos de menú en caché no válidos');
-              }
+            const fallbackData = await fallbackResponse.json();
+            if (fallbackData.success) {
+              menuData.value = fallbackData.menu;
+              console.log('Menú cargado con ID de fallback:', menuData.value);
+              isLoading.value = false;
+              return;
             } else {
-              throw new Error('No se encontró el menú en caché');
+              throw new Error('Error al cargar el menú con ID de fallback');
             }
-          } catch (cacheError) {
-            console.error("Error al recuperar menú desde caché:", cacheError);
-            error.value = 'No se encontró el menú solicitado. Por favor, verifica el enlace o intenta más tarde.';
           }
+          
+          const data = await response.json();
+          
+          if (!data.success) {
+            throw new Error(data.message || 'Error al cargar el menú');
+          }
+          
+          menuData.value = data.menu;
+          console.log('Menú cargado correctamente desde API_URL:', menuData.value);
+          isLoading.value = false;
+          return;
+        } catch (apiError) {
+          console.error('Error al cargar desde API_URL:', apiError);
+          
+          // Como último recurso, crear datos de demostración localmente
+          console.log('Creando datos de demostración como último recurso');
+          
+          menuData.value = {
+            restaurante: {
+              id: 'demo',
+              nombre: 'Restaurante de Demostración',
+              descripcion: 'Este es un restaurante de demostración para probar la aplicación',
+              direccion: 'Calle Principal #123',
+              telefono: '123-456-7890',
+              logo: 'https://picsum.photos/200',
+              horarios: 'Lunes a Domingo: 8:00 AM - 10:00 PM'
+            },
+            items: [
+              {
+                id: 'demo-1',
+                name: 'Hamburguesa Clásica',
+                description: 'Deliciosa hamburguesa con carne, queso, lechuga y tomate',
+                price: 15000,
+                image: 'https://picsum.photos/300?random=1',
+                category: 'Hamburguesas',
+                available: true,
+                isSpecial: true
+              },
+              {
+                id: 'demo-2',
+                name: 'Pizza Margarita',
+                description: 'Pizza tradicional con salsa de tomate, queso mozzarella y albahaca',
+                price: 25000,
+                image: 'https://picsum.photos/300?random=2',
+                category: 'Pizzas',
+                available: true,
+                isSpecial: false
+              },
+              {
+                id: 'demo-3',
+                name: 'Ensalada César',
+                description: 'Ensalada fresca con lechuga, pollo, crutones y aderezo césar',
+                price: 12000,
+                image: 'https://picsum.photos/300?random=3',
+                category: 'Ensaladas',
+                available: true,
+                isSpecial: false
+              }
+            ],
+            businessInfo: {
+              name: 'Restaurante de Demostración',
+              description: 'Este es un restaurante de demostración para probar la aplicación',
+              contact: '123-456-7890',
+              address: 'Calle Principal #123',
+              logo: 'https://picsum.photos/200'
+            }
+          };
         }
-      } catch (e) {
-        console.error("Error general al cargar el menú:", e);
-        error.value = e.message || 'Error al cargar el menú';
-      } finally {
+        
+        isLoading.value = false;
+      } catch (err) {
+        console.error('Error general al cargar el menú:', err);
+        error.value = 'Error al cargar el menú. Por favor, intenta de nuevo.';
         isLoading.value = false;
       }
-    }
-
+    };
+    
     // Verificar si hay información de pago
     const hasPaymentInfo = computed(() => {
       const paymentInfo = menuData.value?.businessInfo?.paymentInfo;
@@ -461,13 +441,6 @@ export default {
     // Contador total de items
     const totalItems = computed(() => {
       return cartItems.value.reduce((total, item) => total + item.quantity, 0);
-    });
-
-    // Total del carrito
-    const cartTotal = computed(() => {
-      return cartItems.value.reduce((total, item) => {
-        return total + (item.price * item.quantity);
-      }, 0);
     });
 
     // Formatear precio
@@ -555,7 +528,7 @@ export default {
     // Guardar carrito en localStorage
     function saveCartToLocalStorage() {
       try {
-        localStorage.setItem(`cart_${route.params.id}`, JSON.stringify(cartItems.value));
+        localStorage.setItem(`cart_${restauranteId.value}`, JSON.stringify(cartItems.value));
       } catch (e) {
         console.error("Error al guardar carrito en localStorage:", e);
       }
@@ -633,7 +606,7 @@ export default {
           cartItems.value = [];
           
           // Limpiar localStorage
-          localStorage.removeItem(`cart_${route.params.id}`);
+          localStorage.removeItem(`cart_${restauranteId.value}`);
           
           // Limpiar datos del cliente
           customerInfo.value = {
@@ -959,35 +932,6 @@ function openWhatsAppShare() {
       return '';
     }
 
-    // Datos del cliente
-    const customerInfo = ref({
-      name: '',
-      phone: '',
-      email: '',
-      address: ''
-    });
-
-    // Método de pago seleccionado
-    const selectedPaymentMethod = ref('cash'); // Por defecto contra entrega
-
-    // Mensaje adicional
-    const additionalMessage = ref('');
-
-    // Filtrar items regulares y especiales
-    const regularItems = computed(() => {
-      if (!menuData.value || !menuData.value.items) return [];
-      const filtered = menuData.value.items.filter(item => !item.isSpecial);
-      console.log('Platos regulares:', filtered.length, filtered.map(i => i.name));
-      return filtered;
-    });
-
-    const specialItems = computed(() => {
-      if (!menuData.value || !menuData.value.items) return [];
-      const filtered = menuData.value.items.filter(item => item.isSpecial === true);
-      console.log('Platos especiales:', filtered.length, filtered.map(i => i.name));
-      return filtered;
-    });
-
     // Estado para el formulario de reserva
     const showReservationForm = ref(false);
     const isProcessingReservation = ref(false);
@@ -1089,8 +1033,23 @@ function openWhatsAppShare() {
       }
     }
 
+    // Estado para el toast
+    const toast = ref({
+      visible: false,
+      message: '',
+      type: 'success', // 'success', 'warning', 'error'
+      timeoutId: null
+    });
+
+    // Estado para la última actualización de la información del negocio
+    const lastBusinessInfoUpdate = ref(null);
+
+    onMounted(() => {
+      loadMenu();
+    });
+
     return {
-      menuId,
+      restauranteId,
       isLoading,
       error,
       menuData,

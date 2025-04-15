@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const dotenv = require('dotenv');
 const { sequelize, closeConnection } = require('./config/database');
+const logger = require('./config/logger');
 
 // Cargar variables de entorno
 dotenv.config();
@@ -15,7 +16,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({
   origin: '*', // Permitir todas las solicitudes para solucionar el problema
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
   credentials: true // Permitir cookies
 }));
 
@@ -43,7 +44,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Middleware para debug de solicitudes
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  logger.info(`${req.method} ${req.url}`);
   next();
 });
 
@@ -75,6 +76,7 @@ const platoRoutes = require('./routes/platoRoutes'); // Rutas de plato individua
 const indexedDBRoutes = require('./routes/indexedDBRoutes'); // Rutas para IndexedDB
 const whatsappRoutes = require('./routes/whatsappRoutes'); // Rutas para WhatsApp
 const restauranteRoutes = require('./routes/restauranteRoutes'); // Rutas para restaurantes
+const menuPublicRoutes = require('./routes/menuPublicRoutes'); // Rutas públicas para menú
 
 // Registrar las rutas
 app.use('/api/sync', syncRoutes);
@@ -86,6 +88,7 @@ app.use('/api/plato', platoRoutes); // Rutas de plato individual
 app.use('/api/indexeddb', indexedDBRoutes); // Rutas para IndexedDB
 app.use('/api/whatsapp', whatsappRoutes); // Rutas para WhatsApp
 app.use('/api/restaurantes', restauranteRoutes); // Rutas para restaurantes
+app.use('/api/menu-publico', menuPublicRoutes); // Rutas públicas para menú
 app.use('/', directDeleteRoutes);
 
 // Ruta de prueba simple
@@ -156,8 +159,12 @@ app.get('*', (req, res) => {
 const syncModels = async () => {
   try {
     console.log(' Sincronizando modelos con la base de datos...');
-    // Cambiamos a sync() sin alter para evitar el error "Too many keys"
-    const db = sequelize();
+    // Usamos directamente la instancia sequelize importada
+    // No llamamos a sequelize como función, porque es la instancia ya creada
+    const db = sequelize; // sequelize ya es la instancia, no una función
+
+    // Exportamos la instancia de sequelize para que esté disponible en todas partes
+    global.db = sequelize;
     if (!db) {
       throw new Error('No se pudo obtener la instancia de Sequelize');
     }
@@ -200,11 +207,32 @@ const startServer = async () => {
     setupConnectionCleanup();
     
     // Iniciar el servidor Express
-    app.listen(PORT, () => {
-      console.log(` Servidor ejecutándose en puerto ${PORT}`);
+    const server = app.listen(PORT, () => {
+      console.log(`Servidor iniciado en el puerto ${PORT}`);
+      logger.info(`Servidor iniciado en el puerto ${PORT}`);
+    });
+    
+    // Manejar cierre adecuado del servidor
+    process.on('SIGTERM', () => {
+      console.log('Recibida señal SIGTERM, cerrando servidor...');
+      server.close(async () => {
+        console.log('Servidor cerrado correctamente');
+        await closeConnection();
+        process.exit(0);
+      });
+    });
+    
+    process.on('SIGINT', () => {
+      console.log('Recibida señal SIGINT, cerrando servidor...');
+      server.close(async () => {
+        console.log('Servidor cerrado correctamente');
+        await closeConnection();
+        process.exit(0);
+      });
     });
   } catch (error) {
     console.error('Error crítico al iniciar el servidor:', error);
+    logger.error(`Error crítico al iniciar el servidor: ${error.message}`, { error });
     console.log('El servidor no pudo iniciarse correctamente. Compruebe la configuración de la base de datos.');
   }
 };

@@ -27,7 +27,7 @@
       </button>
 
       <div v-if="showBusinessForm && !viewOnly">
-        <form @submit.prevent="saveBusinessInfo">
+        <form @submit.prevent="handleSaveBusinessInfo">
           <div>
             <label for="business-name">Nombre del Negocio:</label>
             <input id="business-name" v-model="businessInfo.name" type="text" placeholder="Nombre de tu restaurante" />
@@ -507,7 +507,7 @@ import { isAdmin } from '../services/authService';
 import { jsPDF } from 'jspdf';
 import qrcode from 'qrcode';
 import apiConfig from '../config/apiConfig';
-import { getBusinessInfo, getMenuItems, getSoldItems } from '../services/storageService';
+import { getBusinessInfo, getMenuItems, getSoldItems, compressImage, saveBusinessInfo } from '../services/storageService';
 import { saveMenu } from '../services/menuService';
 
 // ...existing code...
@@ -695,13 +695,13 @@ export default {
       }
     };
 
-    const saveBusinessInfo = async () => {
+    const handleSaveBusinessInfo = async () => {
       try {
         if (notification.value.timeout) {
           clearTimeout(notification.value.timeout);
         }
         
-        await saveBusinessInfoToDB(businessInfo.value);
+        await saveBusinessInfo(businessInfo.value);
         
         notification.value = {
           show: true,
@@ -775,7 +775,7 @@ export default {
         
         businessInfo.value.paymentInfo = { ...paymentInfo.value };
         
-        await saveBusinessInfoToDB(businessInfo.value);
+        await saveBusinessInfo(businessInfo.value);
         
         notification.value = {
           show: true,
@@ -1781,7 +1781,7 @@ export default {
       showBusinessForm,
       toggleBusinessForm,
       onLogoChange,
-      saveBusinessInfo,
+      handleSaveBusinessInfo,
       clearBusinessForm,
       paymentInfo,
       showPaymentForm,
@@ -2438,4 +2438,3 @@ tfoot td {
   opacity: 0.7;
 }
 </style>
-```

@@ -1,9 +1,10 @@
 // backend/models/Restaurante.js
 
 const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const { sequelize: getSequelize } = require('../config/database');
+const sequelize = getSequelize();
 
-const Restaurante = sequelize().define('Restaurante', {
+const Restaurante = sequelize.define('Restaurante', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -52,8 +53,7 @@ const Restaurante = sequelize().define('Restaurante', {
   }
 }, {
   tableName: 'restaurantes',
-  timestamps: true,
-  underscored: true
+  timestamps: true
 });
 
 module.exports = Restaurante;
