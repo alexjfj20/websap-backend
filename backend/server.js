@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 
 // Configuración CORS adecuada
 app.use(cors({
-  origin: '*', // Permitir todas las solicitudes para solucionar el problema
+  origin: ['https://allseo.xyz', 'http://localhost:3001', 'http://localhost:8080', 'http://192.168.1.5:3001'], // Permitir dominios específicos
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
   credentials: true // Permitir cookies
@@ -22,7 +22,16 @@ app.use(cors({
 
 // Middleware adicional para CORS (asegurarse de que las cabeceras se envíen correctamente)
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = ['https://allseo.xyz', 'http://localhost:3001', 'http://localhost:8080', 'http://192.168.1.5:3001'];
+  const origin = req.headers.origin;
+  
+  // Verificar si el origen está en la lista de orígenes permitidos
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', 'https://allseo.xyz'); // Dominio de producción por defecto
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
