@@ -19,23 +19,22 @@ const PORT = process.env.PORT || 3000;
 // Configuración de CORS para permitir peticiones desde tu frontend
 const corsOptions = {
   origin: function (origin, callback) {
-    // Obtener orígenes permitidos desde variables de entorno o usar valores predeterminados
-    const corsOrigin = process.env.CORS_ORIGIN;
-    let allowedOrigins = [];
+    // Crear un conjunto para evitar duplicados
+    const originsSet = new Set();
     
+    // Obtener orígenes permitidos desde variables de entorno
+    const corsOrigin = process.env.CORS_ORIGIN;
     if (corsOrigin) {
       // Si hay varios orígenes separados por comas, dividirlos
       if (corsOrigin.includes(',')) {
-        allowedOrigins = corsOrigin.split(',').map(origin => origin.trim());
+        corsOrigin.split(',').map(o => originsSet.add(o.trim()));
       } else {
-        allowedOrigins = [corsOrigin.trim()];
+        originsSet.add(corsOrigin.trim());
       }
     }
     
-    // Añadir orígenes adicionales
-    allowedOrigins = [
-      ...allowedOrigins,
-      'https://allseo.xyz', 
+    // Añadir orígenes adicionales (solo si no existen ya)
+    const additionalOrigins = [
       'https://www.allseo.xyz',
       // En desarrollo, permitir peticiones del servidor local
       'http://localhost:8080',
@@ -43,7 +42,16 @@ const corsOptions = {
       'http://localhost:3000'
     ];
     
-    console.log(`Orígenes CORS permitidos: ${allowedOrigins.join(', ')}`);
+    additionalOrigins.forEach(origin => originsSet.add(origin));
+    
+    // Convertir el conjunto a array
+    const allowedOrigins = Array.from(originsSet);
+    
+    // Mostrar los orígenes permitidos solo durante el inicio del servidor, no con cada petición
+    if (!corsOptions._originsLogged) {
+      console.log(`Orígenes CORS permitidos: ${allowedOrigins.join(', ')}`);
+      corsOptions._originsLogged = true;
+    }
     
     // Permitir solicitudes sin origin (como aplicaciones móviles o Postman)
     if (!origin) return callback(null, true);
