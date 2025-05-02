@@ -1,5 +1,5 @@
 <template>
-  <div class="shared-menu-container" :id="restauranteId">
+  <div class="shared-menu-container" :id="menuId">
     <div v-if="isLoading" class="loading">
       <div class="spinner"></div>
       <p>Cargando menú...</p>
@@ -10,14 +10,18 @@
     </div>
     
     <div v-else class="menu-content">
-      <!-- Información del negocio -->
+    <!-- Información del negocio -->
       <div v-if="menuData?.businessInfo" class="business-info">
-        <img v-if="menuData.businessInfo.logo && isValidImage(menuData.businessInfo.logo)" :src="fixImageFormat(menuData.businessInfo.logo)" alt="Logo" class="business-logo">
-        <h1>{{ menuData.businessInfo.name }}</h1>
-        <p class="description">{{ menuData.businessInfo.description }}</p>
-        <div class="contact-info" v-if="menuData.businessInfo.contact || menuData.businessInfo.address">
-          <p v-if="menuData.businessInfo.contact"><strong>Contacto:</strong> {{ menuData.businessInfo.contact }}</p>
-          <p v-if="menuData.businessInfo.address"><strong>Dirección:</strong> {{ menuData.businessInfo.address }}</p>
+        <div class="business-header-banner" v-if="menuData.businessInfo.logo && isValidImage(menuData.businessInfo.logo)">
+          <img :src="fixImageFormat(menuData.businessInfo.logo)" alt="Logo" class="business-logo-banner">
+        </div>
+        <div class="business-content">
+          <h1>{{ menuData.businessInfo.name }}</h1>
+          <p class="description">{{ menuData.businessInfo.description }}</p>
+          <div class="contact-info" v-if="menuData.businessInfo.contact || menuData.businessInfo.address">
+            <p v-if="menuData.businessInfo.contact"><strong>Contacto:</strong> {{ menuData.businessInfo.contact }}</p>
+            <p v-if="menuData.businessInfo.address"><strong>Dirección:</strong> {{ menuData.businessInfo.address }}</p>
+          </div>
         </div>
       </div>
       
@@ -164,42 +168,45 @@
           <span class="cart-items-count">{{ totalItems }}</span>
           <span>Ver Pedido</span>
         </div>
-        
-        <!-- Nueva sección: Forma de Pago -->
+          <!-- Nueva sección: Forma de Pago -->
         <div v-if="hasPaymentInfo" class="payment-section">
           <h2>Forma de Pago</h2>
           <div class="payment-methods">
-            <div v-if="menuData?.businessInfo?.paymentInfo?.qrImage" class="payment-method">
-              <h3>{{ menuData?.businessInfo?.paymentInfo?.qrTitle || 'Código QR de Pago' }}</h3>
-              <img 
-                v-if="menuData?.businessInfo?.paymentInfo?.qrImage && isValidImage(menuData?.businessInfo?.paymentInfo?.qrImage)" 
-                :src="fixImageFormat(menuData?.businessInfo?.paymentInfo?.qrImage)" 
-                alt="QR de Pago" 
-                class="payment-image"
-              >
+            <div v-if="menuData?.businessInfo?.paymentInfo?.qrImage" class="payment-method qr-payment">
+              <h3>{{ menuData?.businessInfo?.paymentInfo?.qrTitle || 'Escanear para pagar' }}</h3>
+              <div class="payment-image-container">
+                <img 
+                  v-if="menuData?.businessInfo?.paymentInfo?.qrImage && isValidImage(menuData?.businessInfo?.paymentInfo?.qrImage)" 
+                  :src="fixImageFormat(menuData?.businessInfo?.paymentInfo?.qrImage)" 
+                  alt="QR de Pago" 
+                  class="payment-image"
+                >
+              </div>
             </div>
             
-            <div v-if="menuData?.businessInfo?.paymentInfo?.nequiNumber || menuData?.businessInfo?.paymentInfo?.nequiImage" class="payment-method">
+            <div v-if="menuData?.businessInfo?.paymentInfo?.nequiNumber || menuData?.businessInfo?.paymentInfo?.nequiImage" class="payment-method nequi-payment">
               <h3>Pago con Nequi</h3>
-              <img 
-                v-if="menuData?.businessInfo?.paymentInfo?.nequiImage && isValidImage(menuData?.businessInfo?.paymentInfo?.nequiImage)" 
-                :src="fixImageFormat(menuData?.businessInfo?.paymentInfo?.nequiImage)" 
-                alt="Nequi" 
-                class="payment-image"
-              >
+              <div class="payment-image-container">
+                <img 
+                  v-if="menuData?.businessInfo?.paymentInfo?.nequiImage && isValidImage(menuData?.businessInfo?.paymentInfo?.nequiImage)" 
+                  :src="fixImageFormat(menuData?.businessInfo?.paymentInfo?.nequiImage)" 
+                  alt="Nequi" 
+                  class="payment-image"
+                >
+              </div>
               <p v-if="menuData?.businessInfo?.paymentInfo?.nequiNumber" class="payment-detail">
                 <strong>Número:</strong> {{ menuData?.businessInfo?.paymentInfo?.nequiNumber }}
               </p>
             </div>
             
-            <div v-if="menuData?.businessInfo?.paymentInfo?.bankInfo" class="payment-method">
+            <div v-if="menuData?.businessInfo?.paymentInfo?.bankInfo" class="payment-method bank-payment">
               <h3>Pago Bancario</h3>
               <p class="payment-detail">
                 <strong>Información Bancaria:</strong> {{ menuData?.businessInfo?.paymentInfo?.bankInfo }}
               </p>
             </div>
             
-            <div v-if="menuData?.businessInfo?.paymentInfo?.otherPaymentMethods" class="payment-method">
+            <div v-if="menuData?.businessInfo?.paymentInfo?.otherPaymentMethods" class="payment-method other-payment">
               <h3>Otras Formas de Pago</h3>
               <p class="payment-detail">
                 <strong>Métodos Adicionales:</strong> {{ menuData?.businessInfo?.paymentInfo?.otherPaymentMethods }}
@@ -208,12 +215,11 @@
           </div>
         </div>
         
-        <!-- Comentado temporalmente hasta que el componente ReservaForm esté disponible
+        <!-- Añadir el componente ReservaForm en una sección visible -->
         <div class="reserva-section container mt-5">
           <h3 class="text-center mb-4">¿Quieres hacer una reserva?</h3>
           <ReservaForm />
         </div>
-        -->
         
         <!-- Sistema de notificaciones toast -->
         <div v-if="toast.visible" 
@@ -227,200 +233,215 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, reactive, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { getSharedMenu } from '../services/menuService';
+import { saveReservation } from '../services/reservaService'; // Importamos el servicio de reservas
+import { getMenuItems, updateItemAvailability } from '../services/storageService'; // Importar funciones necesarias
+import ReservaForm from '../components/reservas/ReservaForm.vue';
+import eventBus from '../utils/eventBus';
+import { 
+  fetchBusinessInfoFromBackend, 
+  startBusinessInfoSyncInterval, 
+  stopBusinessInfoSyncInterval 
+} from '../services/businessInfoService';
 
 export default {
   name: 'SharedMenuView',
-  setup() {
+  components: {
+    ReservaForm,
+  },
+  props: {
+    // Añade id como prop si lo necesitas
+    id: {
+      type: String,
+      default: ''
+    }
+  },
+  setup(props) {
     const route = useRoute();
+    const menuId = computed(() => props.id || route.params.id);    const menuData = ref({
+      items: [],
+      businessInfo: null
+    });
     const isLoading = ref(true);
     const error = ref(null);
-    const menuData = ref(null);
     const cartItems = ref([]);
-    const customerInfo = ref({
-      name: '',
-      phone: '',
-      email: '',
-      address: ''
-    });
-    const selectedPaymentMethod = ref('cash'); // Por defecto contra entrega
-    const additionalMessage = ref('');
+    const orderRef = ref(null);
+    const isProcessingOrder = ref(false);
+    const lastBusinessInfoUpdate = ref(null);
     
-    // Obtener el ID del restaurante de la URL
-    const restauranteId = computed(() => {
-      // Usar el ID de la URL o un valor predeterminado
-      return route.params.id || '1';
+    console.log("SharedMenuView montado, ID del menú:", route.params.id);
+
+    // Sistema de notificaciones toast
+    const toast = ref({
+      visible: false,
+      message: '',
+      type: 'success', // 'success', 'warning', 'error'
+      timeoutId: null
     });
-    
-    // Elementos del menú regulares y especiales
-    const regularItems = computed(() => {
-      if (!menuData.value || !menuData.value.items) return [];
-      return menuData.value.items.filter(item => !item.isSpecial);
-    });
-    
-    const specialItems = computed(() => {
-      if (!menuData.value || !menuData.value.items) return [];
-      return menuData.value.items.filter(item => item.isSpecial);
-    });
-    
-    // Total del carrito
-    const cartTotal = computed(() => {
-      return cartItems.value.reduce((total, item) => {
-        return total + (item.price * item.quantity);
-      }, 0);
+
+    // Cargar menú cuando el componente se monte
+    onMounted(() => {
+      loadMenu();
+      
+      // Suscribirse al evento de actualización de información del negocio
+      eventBus.on('business-info-updated', handleBusinessInfoUpdate);
+      
+      // Iniciar la sincronización periódica con parámetro true para desactivarla en vista compartida
+      startBusinessInfoSyncInterval(true);
     });
     
-    // Cargar el menú desde la API pública
-    const loadMenu = async () => {
+    // Al desmontar el componente, cancelar suscripciones y detener intervalos
+    onUnmounted(() => {
+      eventBus.off('business-info-updated', handleBusinessInfoUpdate);
+      stopBusinessInfoSyncInterval();
+      
+      // Limpiar timeout del toast si existe
+      if (toast.value.timeoutId) {
+        clearTimeout(toast.value.timeoutId);
+      }
+    });
+    
+    // Manejar la actualización de información del negocio
+    const handleBusinessInfoUpdate = (updatedInfo) => {
+      console.log('Nueva información del negocio recibida en SharedMenuView:', updatedInfo);
+      
+      if (!updatedInfo) return;
+      
+      // Actualizar la información del negocio en menuData
+      menuData.value.businessInfo = {
+        ...updatedInfo
+      };
+      
+      lastBusinessInfoUpdate.value = Date.now();
+      
+      // Mostrar notificación sutil
+      showToast('Información del negocio actualizada', 'info');
+    };
+
+    // Cargar el menú desde la API
+    async function loadMenu() {
       try {
         isLoading.value = true;
-        error.value = null;
+        error.value = null; // Resetear error al inicio
+        console.log("Cargando menú con ID:", route.params.id);
         
-        // Importar la configuración de la API
-        const apiConfig = await import('../config/apiConfig');
-        const API_URL = apiConfig.default.API_URL;
-        console.log('Usando API URL:', API_URL);
-        
-        // Obtener el ID del restaurante de la URL
-        const id = route.params.id;
-        console.log('ID del restaurante desde URL:', id);
-        
-        if (!id) {
-          error.value = 'ID de restaurante no válido';
+        if (!route.params.id) {
+          error.value = 'ID de menú no especificado';
           isLoading.value = false;
           return;
         }
         
-        // Intentar cargar el menú directamente desde el servidor de producción
-        try {
-          // URL absoluta para asegurar que se use el servidor de producción
-          const prodUrl = 'https://websap-backend.onrender.com/api/menu-publico/1';
-          console.log('Intentando cargar menú desde URL de producción:', prodUrl);
-          
-          const response = await fetch(prodUrl);
-          
-          if (response.ok) {
-            const data = await response.json();
-            
-            if (data.success) {
-              menuData.value = data.menu;
-              console.log('Menú cargado correctamente desde producción:', menuData.value);
-              isLoading.value = false;
-              return;
-            }
+        // Intenta cargar desde localStorage primero (por si hay un carrito guardado)
+        const savedCart = localStorage.getItem(`cart_${route.params.id}`);
+        if (savedCart) {
+          try {
+            cartItems.value = JSON.parse(savedCart);
+            console.log("Carrito recuperado de localStorage:", cartItems.value);
+          } catch (e) {
+            console.error("Error al parsear carrito de localStorage:", e);
           }
-          
-          console.error('Error al cargar desde URL de producción, intentando con API_URL');
-        } catch (prodError) {
-          console.error('Error al cargar desde URL de producción:', prodError);
         }
-        
-        // Si falla la carga desde la URL de producción, intentar con API_URL
         try {
-          const apiUrl = `${API_URL}/menu-publico/${id}`;
-          console.log('Intentando cargar menú desde API_URL:', apiUrl);
-          
-          const response = await fetch(apiUrl);
-          
-          if (!response.ok) {
-            console.error('Error en la respuesta de API_URL:', response.status, response.statusText);
+          // Cargar el menú y los items
+          const data = await getSharedMenu(route.params.id);
+          if (data && data.items) {
+            // Asignar los items al menuData
+            menuData.value.items = data.items;
             
-            // Intentar con ID 1 como fallback
-            console.log('Intentando cargar menú con ID de fallback: 1');
-            const fallbackResponse = await fetch(`${API_URL}/menu-publico/1`);
-            
-            if (!fallbackResponse.ok) {
-              throw new Error(`Error al cargar el menú con ID de fallback: ${fallbackResponse.status}`);
-            }
-            
-            const fallbackData = await fallbackResponse.json();
-            if (fallbackData.success) {
-              menuData.value = fallbackData.menu;
-              console.log('Menú cargado con ID de fallback:', menuData.value);
-              isLoading.value = false;
-              return;
-            } else {
-              throw new Error('Error al cargar el menú con ID de fallback');
-            }
-          }
-          
-          const data = await response.json();
-          
-          if (!data.success) {
-            throw new Error(data.message || 'Error al cargar el menú');
-          }
-          
-          menuData.value = data.menu;
-          console.log('Menú cargado correctamente desde API_URL:', menuData.value);
-          isLoading.value = false;
-          return;
-        } catch (apiError) {
-          console.error('Error al cargar desde API_URL:', apiError);
-          
-          // Como último recurso, crear datos de demostración localmente
-          console.log('Creando datos de demostración como último recurso');
-          
-          menuData.value = {
-            restaurante: {
-              id: 'demo',
-              nombre: 'Restaurante de Demostración',
-              descripcion: 'Este es un restaurante de demostración para probar la aplicación',
-              direccion: 'Calle Principal #123',
-              telefono: '123-456-7890',
-              logo: 'https://picsum.photos/200',
-              horarios: 'Lunes a Domingo: 8:00 AM - 10:00 PM'
-            },
-            items: [
-              {
-                id: 'demo-1',
-                name: 'Hamburguesa Clásica',
-                description: 'Deliciosa hamburguesa con carne, queso, lechuga y tomate',
-                price: 15000,
-                image: 'https://picsum.photos/300?random=1',
-                category: 'Hamburguesas',
-                available: true,
-                isSpecial: true
-              },
-              {
-                id: 'demo-2',
-                name: 'Pizza Margarita',
-                description: 'Pizza tradicional con salsa de tomate, queso mozzarella y albahaca',
-                price: 25000,
-                image: 'https://picsum.photos/300?random=2',
-                category: 'Pizzas',
-                available: true,
-                isSpecial: false
-              },
-              {
-                id: 'demo-3',
-                name: 'Ensalada César',
-                description: 'Ensalada fresca con lechuga, pollo, crutones y aderezo césar',
-                price: 12000,
-                image: 'https://picsum.photos/300?random=3',
-                category: 'Ensaladas',
-                available: true,
-                isSpecial: false
+            // Primero intentamos cargar la información del negocio desde el backend (mayor prioridad)
+            try {
+              // Primero asignamos la información del negocio que viene con el menú
+              if (data.businessInfo) {
+                menuData.value.businessInfo = data.businessInfo;
+                console.log("Información del negocio cargada del menú:", data.businessInfo);
               }
-            ],
-            businessInfo: {
-              name: 'Restaurante de Demostración',
-              description: 'Este es un restaurante de demostración para probar la aplicación',
-              contact: '123-456-7890',
-              address: 'Calle Principal #123',
-              logo: 'https://picsum.photos/200'
+              
+              // Luego intentamos cargar información adicional desde el backend usando el ID del menú
+              const businessInfo = await fetchBusinessInfoFromBackend(false, route.params.id);
+              if (businessInfo && Object.keys(businessInfo).length > 0) {
+                // Combinar la información del backend con la que ya tenemos
+                menuData.value.businessInfo = {
+                  ...menuData.value.businessInfo || {},
+                  ...businessInfo
+                };
+                lastBusinessInfoUpdate.value = Date.now();
+                console.log("Información adicional del negocio cargada del backend con ID:", route.params.id);
+              }
+            } catch (businessInfoError) {
+              console.warn("No se pudo cargar información del negocio desde backend:", businessInfoError);
+              // Si hay error al cargar del backend, usar la que viene con el menú
+              if (data.businessInfo) {
+                menuData.value.businessInfo = data.businessInfo;
+                console.log("Información del negocio cargada del menú como respaldo:", data.businessInfo);
+              }
             }
-          };
+            
+            console.log("Menú cargado con éxito:", menuData.value);
+            // Inicializar disponibilidad para cada ítem
+            menuData.value.items.forEach(item => {
+              // Si la disponibilidad es explícitamente 0, mantenerla así
+              // Si es undefined o null, usar 0 en lugar de un valor predeterminado de 10
+              item.availableQuantity = item.availableQuantity !== undefined ? 
+                Number(item.availableQuantity) : 0;
+              item.realAvailability = item.availableQuantity;
+            });
+            
+            // Actualizar disponibilidad real considerando el carrito
+            updateAvailabilityInMenu();
+            
+            // Guardar en localStorage como respaldo
+            try {
+              localStorage.setItem(`menu_${route.params.id}`, JSON.stringify(menuData.value));
+            } catch (saveError) {
+              console.warn('No se pudo guardar el menú en localStorage:', saveError);
+            }
+          } else {
+            throw new Error('Datos de menú no válidos');
+          }
+        } catch (apiError) {
+          console.error("Error al cargar el menú desde la API:", apiError);
+          
+          // Intentar recuperar desde localStorage como respaldo
+          try {
+            const cachedMenu = localStorage.getItem(`menu_${route.params.id}`);
+            if (cachedMenu) {
+              menuData.value = JSON.parse(cachedMenu);
+              console.log("Menú recuperado desde localStorage:", menuData.value);
+              
+              if (menuData.value && menuData.value.items) {
+                // Inicializar disponibilidad para cada ítem
+                menuData.value.items.forEach(item => {
+                  item.availableQuantity = item.availableQuantity !== undefined ? 
+                    Number(item.availableQuantity) : 0;
+                  item.realAvailability = item.availableQuantity;
+                });
+                
+                // Actualizar disponibilidad real considerando el carrito
+                updateAvailabilityInMenu();
+                
+                // Mostrar notificación de que se está usando datos en caché
+                showToast('Usando datos almacenados localmente. Algunas funciones pueden estar limitadas.', 'warning');
+              } else {
+                throw new Error('Datos de menú en caché no válidos');
+              }
+            } else {
+              throw new Error('No se encontró el menú en caché');
+            }
+          } catch (cacheError) {
+            console.error("Error al recuperar menú desde caché:", cacheError);
+            error.value = 'No se encontró el menú solicitado. Por favor, verifica el enlace o intenta más tarde.';
+          }
         }
-        
-        isLoading.value = false;
-      } catch (err) {
-        console.error('Error general al cargar el menú:', err);
-        error.value = 'Error al cargar el menú. Por favor, intenta de nuevo.';
+      } catch (e) {
+        console.error("Error general al cargar el menú:", e);
+        error.value = e.message || 'Error al cargar el menú';
+      } finally {
         isLoading.value = false;
       }
-    };
-    
+    }
+
     // Verificar si hay información de pago
     const hasPaymentInfo = computed(() => {
       const paymentInfo = menuData.value?.businessInfo?.paymentInfo;
@@ -441,6 +462,13 @@ export default {
     // Contador total de items
     const totalItems = computed(() => {
       return cartItems.value.reduce((total, item) => total + item.quantity, 0);
+    });
+
+    // Total del carrito
+    const cartTotal = computed(() => {
+      return cartItems.value.reduce((total, item) => {
+        return total + (item.price * item.quantity);
+      }, 0);
     });
 
     // Formatear precio
@@ -528,7 +556,7 @@ export default {
     // Guardar carrito en localStorage
     function saveCartToLocalStorage() {
       try {
-        localStorage.setItem(`cart_${restauranteId.value}`, JSON.stringify(cartItems.value));
+        localStorage.setItem(`cart_${route.params.id}`, JSON.stringify(cartItems.value));
       } catch (e) {
         console.error("Error al guardar carrito en localStorage:", e);
       }
@@ -606,7 +634,7 @@ export default {
           cartItems.value = [];
           
           // Limpiar localStorage
-          localStorage.removeItem(`cart_${restauranteId.value}`);
+          localStorage.removeItem(`cart_${route.params.id}`);
           
           // Limpiar datos del cliente
           customerInfo.value = {
@@ -932,6 +960,35 @@ function openWhatsAppShare() {
       return '';
     }
 
+    // Datos del cliente
+    const customerInfo = ref({
+      name: '',
+      phone: '',
+      email: '',
+      address: ''
+    });
+
+    // Método de pago seleccionado
+    const selectedPaymentMethod = ref('cash'); // Por defecto contra entrega
+
+    // Mensaje adicional
+    const additionalMessage = ref('');
+
+    // Filtrar items regulares y especiales
+    const regularItems = computed(() => {
+      if (!menuData.value || !menuData.value.items) return [];
+      const filtered = menuData.value.items.filter(item => !item.isSpecial);
+      console.log('Platos regulares:', filtered.length, filtered.map(i => i.name));
+      return filtered;
+    });
+
+    const specialItems = computed(() => {
+      if (!menuData.value || !menuData.value.items) return [];
+      const filtered = menuData.value.items.filter(item => item.isSpecial === true);
+      console.log('Platos especiales:', filtered.length, filtered.map(i => i.name));
+      return filtered;
+    });
+
     // Estado para el formulario de reserva
     const showReservationForm = ref(false);
     const isProcessingReservation = ref(false);
@@ -1016,12 +1073,10 @@ function openWhatsAppShare() {
       reservationData.value.additionalNotes = '';
       reservationSuccess.value = false;
       reservationError.value = null;
-    }
-
-    // Refrescar información del negocio manualmente
+    }    // Refrescar información del negocio manualmente
     async function refreshBusinessInfo() {
       try {
-        const businessInfo = await fetchBusinessInfoFromBackend(true);
+        const businessInfo = await fetchBusinessInfoFromBackend(true, route.params.id);
         if (businessInfo) {
           menuData.value.businessInfo = businessInfo;
           lastBusinessInfoUpdate.value = Date.now();
@@ -1033,23 +1088,8 @@ function openWhatsAppShare() {
       }
     }
 
-    // Estado para el toast
-    const toast = ref({
-      visible: false,
-      message: '',
-      type: 'success', // 'success', 'warning', 'error'
-      timeoutId: null
-    });
-
-    // Estado para la última actualización de la información del negocio
-    const lastBusinessInfoUpdate = ref(null);
-
-    onMounted(() => {
-      loadMenu();
-    });
-
     return {
-      restauranteId,
+      menuId,
       isLoading,
       error,
       menuData,
@@ -1113,20 +1153,31 @@ function openWhatsAppShare() {
 .business-info {
   text-align: center;
   margin-bottom: 40px;
-  padding: 20px;
   background-color: #f8f9fa;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden; /* Para que la imagen no se salga del contenedor */
 }
 
-.business-logo {
-  max-width: 100%;
-  max-height: 150px;
-  object-fit: contain;
-  margin-bottom: 15px;
+.business-header-banner {
+  width: 100%;
+  height: 200px; /* Altura fija proporcional */
+  overflow: hidden;
+  position: relative;
 }
 
-.business-info h1 {
+.business-logo-banner {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Ajusta la imagen para cubrir todo el espacio */
+  object-position: center; /* Centra la imagen en el contenedor */
+}
+
+.business-content {
+  padding: 20px;
+}
+
+.business-content h1 {
   color: #343a40;
   margin-bottom: 10px;
 }
@@ -1624,66 +1675,116 @@ function openWhatsAppShare() {
   color: #212529;
 }
 
-/* Estilos para la sección de formas de pago */
-.payment-section {
-  margin: 30px 0;
-  padding: 20px;
+/* Estilos adicionales para la sección de información del negocio */
+.business-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 1rem;
   background-color: #f8f9fa;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.payment-section h2 {
-  color: #343a40;
-  font-size: 24px;
   text-align: center;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #28a745;
 }
 
-.payment-methods {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: center;
+@media (min-width: 768px) {
+  .business-header {
+    flex-direction: row;
+    text-align: left;
+  }
 }
 
-.payment-method {
+.business-logo {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  margin-bottom: 1rem;
+  border-radius: 50%;
+}
+
+@media (min-width: 768px) {
+  .business-logo {
+    margin-right: 2rem;
+    margin-bottom: 0;
+  }
+}
+
+.business-info {
   flex: 1;
-  min-width: 200px;
-  max-width: 300px;
-  padding: 15px;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  text-align: center;
 }
 
-.payment-method h3 {
+.business-info h1 {
   margin-top: 0;
-  color: #343a40;
-  font-size: 18px;
-  margin-bottom: 10px;
+  color: #333;
+  font-size: 1.8rem;
+}
+
+.business-description {
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.business-contact {
+  color: #666;
+  font-weight: 500;
+}
+
+/* Estilos específicos para los métodos de pago (QR y Nequi) */
+.payment-image-container {
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0;
 }
 
 .payment-image {
   max-width: 100%;
-  max-height: 200px;
+  max-height: 100%;
   object-fit: contain;
-  margin: 0 auto;
-  display: block;
 }
 
-/* Específicamente reducir el tamaño de la imagen de Nequi */
-.payment-method img[alt="Nequi"] {
-  max-height: 150px;
-  width: auto;
+.payment-method h3 {
+  color: #343a40;
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 18px;
 }
 
-.payment-detail {
-  margin-top: 10px;
-  font-size: 14px;
-  color: #6c757d;
+/* Estilos específicos para QR y Nequi */
+.qr-payment, .nequi-payment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Estilos responsivos para móviles */
+@media (max-width: 768px) {
+  .payment-methods {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .payment-method {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .payment-image-container {
+    height: 150px;
+  }
+}
+
+/* Estilos específicos para pantallas más grandes */
+@media (min-width: 992px) {
+  .payment-methods {
+    justify-content: center;
+    align-items: stretch;
+  }
+  
+  .payment-method {
+    flex: 0 1 350px;
+  }
 }
 </style>

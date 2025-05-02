@@ -12,17 +12,17 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 const syncRoutes = require('./routes/syncRoutes');
 const whatsappRoutes = require('./routes/whatsappRoutes');
 
-// Configuración CORS mejorada
-const cors = require('cors');
-const corsOptions = require('./cors-config');
-app.use(cors(corsOptions));
-
-// Middleware adicional para asegurar que los headers CORS estén siempre presentes
+// Configuración para manejar errores CORS y de headers
 app.use((req, res, next) => {
-  // Asegurar que OPTIONS siempre se maneje correctamente
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Manejar preflight requests
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
+  
   next();
 });
 
@@ -44,10 +44,6 @@ app.use((err, req, res, next) => {
 // Registrar rutas
 app.use('/api/sync', syncRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
-
-// Registrar las rutas de prueba
-testRoutes = require('./routes/testRoutes');
-app.use('/api', testRoutes);
 
 // Puerto para el servidor
 const PORT = process.env.PORT || 3000;

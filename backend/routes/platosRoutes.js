@@ -1,7 +1,7 @@
-// Import necessary modules and dependencies
 const express = require('express');
 const router = express.Router();
-const { getConnection, closeConnection, getSequelize } = require('../config/database');
+const { Plato, Usuario, Restaurante } = require('../models');
+const { sequelize, closeConnection } = require('../config/database');
 const { Op } = require('sequelize');
 const { models } = require('../models');
 const { verifyToken } = require('../middleware/authMiddleware');
@@ -259,34 +259,14 @@ router.get('/menu/:id', async (req, res) => {
     }
     
     // Buscar el restaurante por el enlace compartido
-    console.log('--- Inicio del endpoint /api/platos/menu/:id ---');
-    console.log('Parámetro menuId recibido:', menuId);
-
-    // Verificar conexión a la base de datos
-    try {
-      await sequelize.authenticate();
-      console.log('Conexión a la base de datos exitosa.');
-    } catch (dbError) {
-      console.error('Error al conectar con la base de datos:', dbError);
-      return res.status(500).json({
-        success: false,
-        message: 'Error al conectar con la base de datos',
-        error: dbError.message
-      });
-    }
-
-    console.log('Iniciando búsqueda del restaurante con enlace_compartido:', menuId);
     const restaurante = await Restaurante.findOne({
       where: { enlace_compartido: menuId }
     });
-    console.log('Resultado de la búsqueda del restaurante:', restaurante ? restaurante.toJSON() : 'No encontrado');
     
     if (!restaurante) {
       console.log(`No se encontró restaurante con enlace compartido: ${menuId}`);
-      return res.status(404).json({
-        success: false,
-        message: 'Restaurante no encontrado'
-      });
+      // Si no se encuentra el restaurante, continuar con la lógica actual
+      // para mantener la compatibilidad con enlaces antiguos
     }
     
     try {

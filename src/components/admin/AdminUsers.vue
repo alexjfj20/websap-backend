@@ -226,12 +226,10 @@
 </template>
 
 <script>
-// Importamos el servicio que creamos para los datos de administración
-import adminService from '@/services/adminDashboardService';
 import { ref, computed, onMounted } from 'vue';
-import { getCurrentUser, hasRole } from '@/services/authService';
-import { alert, confirm } from '@/services/dialogService';
-import { getUsers, getRoles, createUser, updateUser, cambiarEstadoUsuario, deleteUser } from '@/services/adminDashboardService';
+import { alert, confirm } from '../../services/dialogService';
+import * as adminService from '../../services/adminService';
+import { hasRole, getCurrentUser } from '../../services/authService';
 
 export default {
   name: 'AdminUsers',

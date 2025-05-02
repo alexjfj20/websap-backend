@@ -1,10 +1,7 @@
-import { openDB } from 'idb';
-import { v4 as uuidv4 } from 'uuid';
-import apiConfig from '../config/apiConfig';
-
-const API_BASE_URL = apiConfig.API_DOMAIN; // URL base para la API
+// Servicio para manejar operaciones con IndexedDB
 const DB_NAME = 'restauranteAppDB'; // Usar este nombre para todas las operaciones
 const DB_VERSION = 4; // Incrementar la versión para forzar una actualización del esquema
+const API_BASE_URL = process.env.VUE_APP_API_URL || 'http://localhost:3000'; // URL base para la API
 const PLATOS_STORE = 'platos'; // Usar 'platos' en lugar de 'menuItems'
 const SYNC_QUEUE_STORE = 'syncQueue';
 
@@ -22,11 +19,6 @@ const initDB = () => {
     request.onsuccess = (event) => {
       const db = event.target.result;
       console.log('IndexedDB inicializada correctamente');
-      
-      // Verificar que los almacenes necesarios existen
-      const storeNames = Array.from(db.objectStoreNames);
-      console.log('Almacenes disponibles:', storeNames);
-      
       resolve(db);
     };
     
@@ -44,39 +36,38 @@ const initDB = () => {
         console.log('Almacén de platos creado');
       } else {
         console.log('El almacén de platos ya existe');
+        
+        // Si necesitamos modificar un almacén existente, primero hay que eliminarlo
+        // y luego volver a crearlo con la nueva configuración
+        try {
+          db.deleteObjectStore(PLATOS_STORE);
+          console.log('Almacén de platos eliminado para recreación');
+          
+          const platosStore = db.createObjectStore(PLATOS_STORE, { keyPath: 'id' });
+          platosStore.createIndex('name', 'name', { unique: false });
+          platosStore.createIndex('syncStatus', 'syncStatus', { unique: false });
+          console.log('Almacén de platos recreado con nueva configuración');
+        } catch (error) {
+          console.error('Error al intentar modificar el almacén de platos:', error);
+        }
       }
       
       // Crear almacén para la cola de sincronización si no existe
       if (!db.objectStoreNames.contains(SYNC_QUEUE_STORE)) {
         console.log('Creando almacén de cola de sincronización...');
         const syncQueueStore = db.createObjectStore(SYNC_QUEUE_STORE, { keyPath: 'id', autoIncrement: true });
-        syncQueueStore.createIndex('entityType', 'entityType', { unique: false });
-        syncQueueStore.createIndex('entityId', 'entityId', { unique: false });
-        syncQueueStore.createIndex('action', 'action', { unique: false });
         syncQueueStore.createIndex('timestamp', 'timestamp', { unique: false });
+        syncQueueStore.createIndex('type', 'type', { unique: false });
         console.log('Almacén de cola de sincronización creado');
       } else {
         console.log('El almacén de cola de sincronización ya existe');
       }
-      
-      // Crear otros almacenes necesarios
-      const requiredStores = ['businessInfo', 'categories', 'soldItems'];
-      
-      requiredStores.forEach(storeName => {
-        if (!db.objectStoreNames.contains(storeName)) {
-          console.log(`Creando almacén ${storeName}...`);
-          db.createObjectStore(storeName, { keyPath: 'id' });
-          console.log(`Almacén ${storeName} creado`);
-        } else {
-          console.log(`El almacén ${storeName} ya existe`);
-        }
-      });
     };
   });
 };
 
 // Abrir conexión a la base de datos
-const openDatabase = async () => {
+const openDB = async () => {
   try {
     return await initDB();
   } catch (error) {
@@ -122,63 +113,26 @@ const getPendingPlatos = async () => {
   try {
     console.log('Buscando platos pendientes de sincronización...');
     const db = await openDB();
-    
-    // Verificar si el almacén existe antes de intentar acceder a él
-    if (!db.objectStoreNames.contains(PLATOS_STORE)) {
-      console.warn(`El almacén ${PLATOS_STORE} no existe. Creando la base de datos nuevamente...`);
-      // Cerrar la conexión actual
-      db.close();
-      
-      // Incrementar la versión para forzar una actualización
-      const newVersion = DB_VERSION + 1;
-      console.log(`Intentando abrir la base de datos con nueva versión: ${newVersion}`);
-      
-      // Crear una nueva promesa para manejar la recreación de la base de datos
-      return new Promise((resolve) => {
-        // Devolver un array vacío ya que no hay platos pendientes
-        console.log('Devolviendo array vacío de platos pendientes');
-        resolve([]);
-      });
-    }
-    
     return new Promise((resolve, reject) => {
-      try {
-        const transaction = db.transaction([PLATOS_STORE], 'readonly');
-        const store = transaction.objectStore(PLATOS_STORE);
-        
-        // Verificar si el índice syncStatus existe
-        if (!store.indexNames.contains('syncStatus')) {
-          console.warn('El índice syncStatus no existe en el almacén de platos');
-          resolve([]);
-          return;
-        }
-        
-        const index = store.index('syncStatus');
-        const request = index.getAll('pending');
-        
-        request.onsuccess = (event) => {
-          const pendingPlatos = event.target.result;
-          console.log(`Encontrados ${pendingPlatos.length} platos pendientes de sincronización`);
-          resolve(pendingPlatos);
-        };
-        
-        request.onerror = (event) => {
-          console.error('Error al obtener platos pendientes:', event);
-          // En caso de error, devolver un array vacío en lugar de rechazar la promesa
-          console.log('Devolviendo array vacío debido a error');
-          resolve([]);
-        };
-      } catch (transactionError) {
-        console.error('Error al crear la transacción:', transactionError);
-        // En caso de error, devolver un array vacío en lugar de rechazar la promesa
-        console.log('Devolviendo array vacío debido a error en la transacción');
-        resolve([]);
-      }
+      const transaction = db.transaction([PLATOS_STORE], 'readonly');
+      const store = transaction.objectStore(PLATOS_STORE);
+      const index = store.index('syncStatus');
+      const request = index.getAll('pending');
+      
+      request.onsuccess = (event) => {
+        const pendingPlatos = event.target.result;
+        console.log(`Encontrados ${pendingPlatos.length} platos pendientes de sincronización`);
+        resolve(pendingPlatos);
+      };
+      
+      request.onerror = (event) => {
+        console.error('Error al obtener platos pendientes:', event);
+        reject('Error al obtener platos pendientes');
+      };
     });
   } catch (error) {
     console.error('Error en getPendingPlatos:', error);
-    // En caso de error, devolver un array vacío en lugar de lanzar una excepción
-    return [];
+    throw error;
   }
 };
 
@@ -296,54 +250,25 @@ const getSyncQueue = async () => {
   try {
     console.log('Obteniendo cola de sincronización...');
     const db = await openDB();
-    
-    // Verificar si el almacén existe antes de intentar acceder a él
-    if (!db.objectStoreNames.contains(SYNC_QUEUE_STORE)) {
-      console.warn(`El almacén ${SYNC_QUEUE_STORE} no existe. Creando la base de datos nuevamente...`);
-      // Cerrar la conexión actual
-      db.close();
-      
-      // Incrementar la versión para forzar una actualización
-      const newVersion = DB_VERSION + 1;
-      console.log(`Intentando abrir la base de datos con nueva versión: ${newVersion}`);
-      
-      // Crear una nueva promesa para manejar la recreación de la base de datos
-      return new Promise((resolve) => {
-        // Devolver un array vacío ya que no hay elementos en la cola
-        console.log('Devolviendo array vacío de cola de sincronización');
-        resolve([]);
-      });
-    }
-    
     return new Promise((resolve, reject) => {
-      try {
-        const transaction = db.transaction([SYNC_QUEUE_STORE], 'readonly');
-        const store = transaction.objectStore(SYNC_QUEUE_STORE);
-        const request = store.getAll();
-        
-        request.onsuccess = (event) => {
-          const queue = event.target.result;
-          console.log(`Obtenidos ${queue.length} elementos de la cola de sincronización`);
-          resolve(queue);
-        };
-        
-        request.onerror = (event) => {
-          console.error('Error al obtener cola de sincronización:', event);
-          // En caso de error, devolver un array vacío en lugar de rechazar la promesa
-          console.log('Devolviendo array vacío debido a error');
-          resolve([]);
-        };
-      } catch (transactionError) {
-        console.error('Error al crear la transacción:', transactionError);
-        // En caso de error, devolver un array vacío en lugar de rechazar la promesa
-        console.log('Devolviendo array vacío debido a error en la transacción');
-        resolve([]);
-      }
+      const transaction = db.transaction([SYNC_QUEUE_STORE], 'readonly');
+      const store = transaction.objectStore(SYNC_QUEUE_STORE);
+      const request = store.getAll();
+      
+      request.onsuccess = (event) => {
+        const queue = event.target.result;
+        console.log(`Obtenidos ${queue.length} elementos de la cola de sincronización`);
+        resolve(queue);
+      };
+      
+      request.onerror = (event) => {
+        console.error('Error al obtener cola de sincronización:', event);
+        reject('Error al obtener cola de sincronización');
+      };
     });
   } catch (error) {
     console.error('Error en getSyncQueue:', error);
-    // En caso de error, devolver un array vacío en lugar de lanzar una excepción
-    return [];
+    throw error;
   }
 };
 
@@ -1142,7 +1067,7 @@ if (typeof window !== 'undefined') {
 }
 
 export {
-  openDatabase,
+  openDB,
   savePlato,
   getAllPlatos,
   getPendingPlatos,
@@ -1162,7 +1087,7 @@ export {
 };
 
 export default {
-  openDatabase,
+  openDB,
   savePlato,
   getAllPlatos,
   getPendingPlatos,

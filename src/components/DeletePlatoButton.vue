@@ -12,7 +12,6 @@
 
 <script>
 import { ref } from 'vue';
-import apiConfig from '../config/apiConfig';
 
 export default {
   name: 'DeletePlatoButton',
@@ -45,8 +44,8 @@ export default {
       try {
         console.log(`Iniciando eliminación directa del plato ID: ${props.platoId}`);
         
-        // Usar fetch con la API centralizada
-        const response = await fetch(`${apiConfig.API_URL}/sync/platos`, {
+        // Usar fetch directamente para eliminar el plato
+        const response = await fetch('http://localhost:3000/api/sync/platos', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

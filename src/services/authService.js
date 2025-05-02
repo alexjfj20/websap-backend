@@ -1,7 +1,6 @@
 import axios from 'axios';
-import apiConfig from '../config/apiConfig';
 
-const API_URL = apiConfig.API_URL;
+const API_URL = 'http://localhost:3000/api';
 
 // Función para guardar token en localStorage
 const saveToken = (token) => {
@@ -205,7 +204,7 @@ async function login(email, password) {
     // Si no se encontró usuario local
     throw new Error('Credenciales incorrectas');
   }
-}
+};
 
 // Función para cerrar sesión
 const logout = () => {

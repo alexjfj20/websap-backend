@@ -3,7 +3,6 @@ const cors = require('cors');
 const path = require('path');
 const dotenv = require('dotenv');
 const { sequelize, closeConnection } = require('./config/database');
-const logger = require('./config/logger');
 
 // Cargar variables de entorno
 dotenv.config();
@@ -14,24 +13,15 @@ const PORT = process.env.PORT || 3000;
 
 // Configuración CORS adecuada
 app.use(cors({
-  origin: ['https://allseo.xyz', 'http://localhost:3001', 'http://localhost:8080', 'http://192.168.1.5:3001'], // Permitir dominios específicos
+  origin: '*', // Permitir todas las solicitudes para solucionar el problema
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   credentials: true // Permitir cookies
 }));
 
 // Middleware adicional para CORS (asegurarse de que las cabeceras se envíen correctamente)
 app.use((req, res, next) => {
-  const allowedOrigins = ['https://allseo.xyz', 'http://localhost:3001', 'http://localhost:8080', 'http://192.168.1.5:3001'];
-  const origin = req.headers.origin;
-  
-  // Verificar si el origen está en la lista de orígenes permitidos
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    res.header('Access-Control-Allow-Origin', 'https://allseo.xyz'); // Dominio de producción por defecto
-  }
-  
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -53,7 +43,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Middleware para debug de solicitudes
 app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.url}`);
+  console.log(`${req.method} ${req.url}`);
   next();
 });
 
@@ -85,7 +75,6 @@ const platoRoutes = require('./routes/platoRoutes'); // Rutas de plato individua
 const indexedDBRoutes = require('./routes/indexedDBRoutes'); // Rutas para IndexedDB
 const whatsappRoutes = require('./routes/whatsappRoutes'); // Rutas para WhatsApp
 const restauranteRoutes = require('./routes/restauranteRoutes'); // Rutas para restaurantes
-const menuPublicRoutes = require('./routes/menuPublicRoutes'); // Rutas públicas para menú
 
 // Registrar las rutas
 app.use('/api/sync', syncRoutes);
@@ -97,7 +86,6 @@ app.use('/api/plato', platoRoutes); // Rutas de plato individual
 app.use('/api/indexeddb', indexedDBRoutes); // Rutas para IndexedDB
 app.use('/api/whatsapp', whatsappRoutes); // Rutas para WhatsApp
 app.use('/api/restaurantes', restauranteRoutes); // Rutas para restaurantes
-app.use('/api/menu-publico', menuPublicRoutes); // Rutas públicas para menú
 app.use('/', directDeleteRoutes);
 
 // Ruta de prueba simple
@@ -110,20 +98,6 @@ app.get('/api/test/ping', (req, res) => {
   res.status(200).json({ 
     message: 'pong',
     timestamp: new Date().toISOString() 
-  });
-});
-
-// Ruta de prueba específica para CORS
-app.get('/cors-test', (req, res) => {
-  res.status(200).json({ 
-    message: 'CORS está configurado correctamente',
-    origin: req.headers.origin || 'No origin header',
-    timestamp: new Date().toISOString(),
-    headers: {
-      'access-control-allow-origin': res.getHeader('Access-Control-Allow-Origin'),
-      'access-control-allow-methods': res.getHeader('Access-Control-Allow-Methods'),
-      'access-control-allow-headers': res.getHeader('Access-Control-Allow-Headers')
-    }
   });
 });
 
@@ -182,12 +156,8 @@ app.get('*', (req, res) => {
 const syncModels = async () => {
   try {
     console.log(' Sincronizando modelos con la base de datos...');
-    // Usamos directamente la instancia sequelize importada
-    // No llamamos a sequelize como función, porque es la instancia ya creada
-    const db = sequelize; // sequelize ya es la instancia, no una función
-
-    // Exportamos la instancia de sequelize para que esté disponible en todas partes
-    global.db = sequelize;
+    // Cambiamos a sync() sin alter para evitar el error "Too many keys"
+    const db = sequelize();
     if (!db) {
       throw new Error('No se pudo obtener la instancia de Sequelize');
     }
@@ -230,32 +200,11 @@ const startServer = async () => {
     setupConnectionCleanup();
     
     // Iniciar el servidor Express
-    const server = app.listen(PORT, () => {
-      console.log(`Servidor iniciado en el puerto ${PORT}`);
-      logger.info(`Servidor iniciado en el puerto ${PORT}`);
-    });
-    
-    // Manejar cierre adecuado del servidor
-    process.on('SIGTERM', () => {
-      console.log('Recibida señal SIGTERM, cerrando servidor...');
-      server.close(async () => {
-        console.log('Servidor cerrado correctamente');
-        await closeConnection();
-        process.exit(0);
-      });
-    });
-    
-    process.on('SIGINT', () => {
-      console.log('Recibida señal SIGINT, cerrando servidor...');
-      server.close(async () => {
-        console.log('Servidor cerrado correctamente');
-        await closeConnection();
-        process.exit(0);
-      });
+    app.listen(PORT, () => {
+      console.log(` Servidor ejecutándose en puerto ${PORT}`);
     });
   } catch (error) {
     console.error('Error crítico al iniciar el servidor:', error);
-    logger.error(`Error crítico al iniciar el servidor: ${error.message}`, { error });
     console.log('El servidor no pudo iniciarse correctamente. Compruebe la configuración de la base de datos.');
   }
 };

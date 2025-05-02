@@ -1,4 +1,3 @@
-```vue
 // src/components/DirectDeleteButton.vue
 
 <template>
@@ -29,7 +28,7 @@
 </template>
 
 <script>
-import apiConfig from '../config/apiConfig';
+import { ref } from 'vue';
 
 export default {
   name: 'DirectDeleteButton',
@@ -57,8 +56,8 @@ export default {
       deleteStatus.value = 'Iniciando eliminación...';
       
       try {
-        // Usar la URL de apiConfig
-        const response = await fetch(`${apiConfig.API_DOMAIN}/direct-delete?id=${encodeURIComponent(props.platoId)}`, {
+        // Usar el endpoint de eliminación directa mejorado
+        const response = await fetch(`http://localhost:3000/direct-delete?id=${encodeURIComponent(props.platoId)}`, {
           method: 'GET',
           headers: {
             'Cache-Control': 'no-cache'
@@ -205,4 +204,3 @@ export default {
   cursor: not-allowed;
 }
 </style>
-```

@@ -10,44 +10,10 @@ import {
 } from './indexedDBService';
 import { adaptPlatoData } from '../utils/dataAdapters';
 import { optimizeImageForSync } from './imageService';
-import apiConfig from '../config/apiConfig';
-import { testApiConnection, isOfflineMode } from '../utils/connectionHandler';
 
-// Función para obtener las URLs actualizadas del API
-const getApiUrls = () => {
-  // Si el API URL fue actualizado por el connectionHandler, actualizar la configuración
-  const storedApiUrl = localStorage.getItem('apiUrl');
-  if (storedApiUrl) {
-    // Construir URLs con el dominio correcto
-    return {
-      API_URL: `${storedApiUrl}/api`,
-      RAW_URL: `${storedApiUrl}/raw`
-    };
-  }
-  
-  // Usar configuración por defecto
-  return {
-    API_URL: apiConfig.API_URL,
-    RAW_URL: apiConfig.RAW_URL
-  };
-};
-
-// URLs dinámicas que pueden actualizarse en tiempo de ejecución
-let { API_URL, RAW_URL } = getApiUrls();
-
-// Función para actualizar las URLs de la API en tiempo de ejecución
-const refreshApiUrls = () => {
-  const urls = getApiUrls();
-  API_URL = urls.API_URL;
-  RAW_URL = urls.RAW_URL;
-  console.log('🔄 URLs de API actualizadas:', { API_URL, RAW_URL });
-};
-
-// Escuchar los cambios de conexión para actualizar las URLs
-window.addEventListener('api-connection-change', (event) => {
-  console.log('🌐 Estado de conexión API cambiado:', event.detail.connected);
-  refreshApiUrls();
-});
+// Constantes desde el servicio IndexedDB
+const API_URL = 'http://localhost:3000/api';
+const RAW_URL = 'http://localhost:3000/raw';
 
 // Configuración específica para mejorar la sincronización
 const SYNC_CONFIG = {
@@ -112,129 +78,49 @@ const setupConnectionListeners = () => {
 };
 
 // Función para probar la conexión con el servidor (modo ultra-ligero)
-// Función para intentar conexión en modo no-cors (evita errores CORS pero con limitaciones)
-const tryFetchNoCors = async (url) => {
-  console.log('🔄 Intentando conexión en modo no-cors:', url);
-  
-  return new Promise((resolve) => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.warn('⏱️ Timeout en la prueba no-cors');
-      controller.abort();
-      resolve(false);
-    }, 5000);
-    
-    fetch(url, {
-      method: 'GET',
-      mode: 'no-cors', // Importante: en este modo no podemos leer la respuesta
-      credentials: 'omit',
-      cache: 'no-store',
-      signal: controller.signal
-    })
-    .then(() => {
-      // En modo no-cors, cualquier respuesta que no sea un error de red
-      // se considera exitosa, aunque no podamos leer su contenido
-      clearTimeout(timeoutId);
-      console.log('✅ Conexión no-cors establecida');
-      resolve(true);
-    })
-    .catch(error => {
-      clearTimeout(timeoutId);
-      console.error('❌ Error en modo no-cors:', error.message);
-      resolve(false);
-    });
-  });
-};
-
-// Función para probar puertos alternativos (3000, 5000, 8000)
-const checkAlternativePort = async () => {
-  console.log('🔄 Probando puertos alternativos...');
-  
-  // Extraer el dominio de la URL actual
-  const apiUrl = getApiUrls().API_URL;
-  const urlObj = new URL(apiUrl);
-  const domain = urlObj.hostname;
-  
-  // Lista de puertos comunes para desarrollo
-  const commonPorts = [3000, 5000, 8000];
-  
-  for (const port of commonPorts) {
-    const testUrl = `${urlObj.protocol}//${domain}:${port}/api/test/ping`;
-    console.log(`🔄 Probando puerto alternativo: ${testUrl}`);
-    
-    try {
-      const response = await fetch(testUrl, {
-        method: 'GET',
-        mode: 'no-cors',
-        cache: 'no-store',
-        credentials: 'omit'
-      });
-      
-      if (response) {
-        console.log(`✅ Puerto alternativo ${port} responde`);
-        // Guardar esta URL como alternativa
-        localStorage.setItem('apiUrl', `${urlObj.protocol}//${domain}:${port}`);
-        return true;
-      }
-    } catch (error) {
-      console.log(`❌ Puerto ${port} no disponible`);
-    }
-  }
-  
-  console.log('❌ No se encontraron puertos alternativos disponibles');
-  return false;
-};
-
 const testServerConnection = async () => {
   console.log('🔄 Probando conexión con el servidor (modo emergencia)...');
   
   try {
-    // Usar fetch API que maneja mejor CORS
-    const urls = getApiUrls();
-    const pingURL = `${urls.API_URL}/test/ping`;
-    console.log(`🔄 Probando conexión a: ${pingURL}`);
+    // Usar XMLHttpRequest sin cookies ni headers personalizados
+    const xhr = new XMLHttpRequest();
     
     const responsePromise = new Promise((resolve) => {
-      // Configurar timeout
-      const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         console.warn('⏱️ Timeout en la prueba de conexión');
-        controller.abort();
+        xhr.abort();
         resolve(false);
-      }, 8000);
+      }, 5000);
       
-      // Usar fetch con modo no-cors como fallback
-      fetch(pingURL, {
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'omit', // No enviar cookies
-        headers: {
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        signal: controller.signal
-      })
-      .then(response => {
-        clearTimeout(timeoutId);
-        if (response.ok) {
-          console.log('✅ Conexión básica establecida');
-          resolve(true);
-        } else {
-          console.log(`⚠️ Respuesta no OK: ${response.status}`);
-          // Si es un error CORS, intentar en modo no-cors
-          if (response.status === 0 || response.status === 403) {
-            tryFetchNoCors(pingURL).then(resolve);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+          clearTimeout(timeoutId);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            console.log('✅ Conexión básica establecida');
+            resolve(true);
+          } else if (xhr.status === 431) {
+            console.error('❌ Error 431: Request Header Fields Too Large');
+            console.log('👉 Necesitas reducir el tamaño de las cookies o headers');
+            resolve(false);
           } else {
+            console.error(`❌ Error en prueba de conexión: ${xhr.status}`);
             resolve(false);
           }
         }
-      })
-      .catch(error => {
+      };
+      
+      xhr.onerror = function() {
         clearTimeout(timeoutId);
-        console.error('❌ Error de red en prueba de conexión:', error.message);
+        console.error('❌ Error de red en prueba de conexión');
         // Intentar con endpoint de emergencia sin headers
         checkAlternativePort().then(resolve);
-      });
+      };
+      
+      // Realizar una solicitud GET simple sin headers
+      xhr.open('GET', `${API_URL}/test/ping`, true);
+      // No añadir ningún header
+      xhr.withCredentials = false; // Importante: evitar enviar cookies
+      xhr.send();
     });
     
     return await responsePromise;
@@ -244,9 +130,9 @@ const testServerConnection = async () => {
   }
 };
 
-// Comprobar puerto alternativo (implementación secundaria)
-const checkAlternativePort2 = async () => {
-  console.log('🔄 Probando puertos alternativos (segundo método)...');
+// Comprobar puerto alternativo
+const checkAlternativePort = async () => {
+  console.log('🔄 Probando puertos alternativos...');
   
   // Lista de puertos comunes para probar
   const ports = [8080, 3000, 5000, 8000];
@@ -276,6 +162,7 @@ const checkAlternativePort2 = async () => {
   return false;
 };
 
+// Función para probar la conexión a MySQL
 const testMySQLConnection = async () => {
   console.log('🔄 Probando conexión a MySQL...');
   
@@ -309,9 +196,14 @@ const testMySQLConnection = async () => {
 };
 
 // Función para sincronizar datos entre IndexedDB y el servidor
-async function syncData() {
+const syncData = async () => {
+  if (!await isOnline()) {
+    console.log('Sin conexión a Internet, la sincronización no es posible');
+    return false;
+  }
+  
   if (isSyncing) {
-    console.log('🔄 Ya hay una sincronización en curso');
+    console.log('Ya hay una sincronización en progreso');
     return false;
   }
   
@@ -320,42 +212,36 @@ async function syncData() {
   console.log('🔄 Iniciando sincronización de datos...');
   
   try {
-    // Verificar si la cola de sincronización existe antes de intentar acceder a ella
-    try {
-      // Procesar la cola de sincronización
-      const syncQueue = await getSyncQueue();
-      console.log(`📋 Cola de sincronización: ${syncQueue.length} elementos`);
-      
-      for (const item of syncQueue) {
-        if (item.entityType === 'plato') {
-          // Obtener el plato completo de IndexedDB
-          const plato = await getPlato(item.entityId);
+    // Procesar la cola de sincronización
+    const syncQueue = await getSyncQueue();
+    console.log(`📋 Cola de sincronización: ${syncQueue.length} elementos`);
+    
+    for (const item of syncQueue) {
+      if (item.entityType === 'plato') {
+        // Obtener el plato completo de IndexedDB
+        const plato = await getPlato(item.entityId);
+        
+        if (plato) {
+          console.log(`🍽️ Sincronizando plato: ${plato.name} (${plato.id})`);
           
-          if (plato) {
-            console.log(`🍽️ Sincronizando plato: ${plato.name} (${plato.id})`);
+          try {
+            // Intentar sincronización minimalista
+            const success = await syncPlato(plato);
             
-            try {
-              // Intentar sincronización minimalista
-              const success = await syncPlato(plato);
-              
-              if (success.success) {
-                console.log(`✅ Plato ${plato.id} sincronizado correctamente`);
-                await removeFromSyncQueue(item.id);
-              } else {
-                console.error(`❌ Error al sincronizar plato ${plato.id}`);
-              }
-            } catch (syncError) {
-              console.error(`❌ Error durante la sincronización del plato ${plato.id}:`, syncError);
+            if (success.success) {
+              console.log(`✅ Plato ${plato.id} sincronizado correctamente`);
+              await removeFromSyncQueue(item.id);
+            } else {
+              console.error(`❌ Error al sincronizar plato ${plato.id}`);
             }
-          } else {
-            console.warn(`⚠️ No se encontró el plato ${item.entityId} en IndexedDB`);
-            await removeFromSyncQueue(item.id);
+          } catch (syncError) {
+            console.error(`❌ Excepción al sincronizar plato ${plato.id}:`, syncError);
           }
+        } else {
+          console.warn(`⚠️ Plato ${item.entityId} no encontrado en IndexedDB`);
+          await removeFromSyncQueue(item.id);
         }
       }
-    } catch (queueError) {
-      console.warn('⚠️ Error al acceder a la cola de sincronización. Posiblemente no existe el almacén:', queueError);
-      console.log('🔄 Continuando con la sincronización sin procesar la cola...');
     }
     
     // Buscar platos pendientes que no estén en la cola
@@ -440,7 +326,7 @@ const tryUltraMinimalSync = async (data, platoId) => {
     const adaptedData = await adaptPlatoDataWithImageOptimization(data);
     const minimalData = {
       id: adaptedData.id,
-      name: adaptedData.name?.substring(0, 30),
+      name: (adaptedData.name || "").substring(0, 30),
       price: Number(adaptedData.price) || 0
     };
     

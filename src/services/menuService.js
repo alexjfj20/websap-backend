@@ -169,184 +169,60 @@ export async function getSharedMenu(menuId) {
       return null;
     }
 
-    // Implementación optimizada para priorizar datos en tiempo real con fallback local
+    // Intentar primero recuperar el menú desde IndexedDB como respaldo
     let menuData = null;
-    let isOnline = navigator.onLine;
-    console.log(`Estado de conexión: ${isOnline ? 'Online' : 'Offline'}`);
-    
-    // Función para verificar conexión real con ping al servidor
-    const checkRealConnection = async () => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const response = await fetch('/api/ping', { 
-          signal: controller.signal,
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' }
-        });
-        clearTimeout(timeoutId);
-        return response.ok;
-      } catch (e) {
-        console.log('Error al verificar conexión real:', e);
-        return false;
-      }
-    };
-    
-    // Intentaremos primero cargar datos en caché mientras verificamos la conexión real
-    // (Patrón stale-while-revalidate)
     try {
-      console.log('Intentando cargar menú desde caché mientras verificamos conexión...');
       const menuUtils = await import('./menuUtils');
-      const cachedMenu = await menuUtils.getMenuFromIndexedDB(menuId);
-      
-      // Si tenemos un menú en caché, lo usamos temporalmente mientras obtenemos datos frescos
-      if (cachedMenu && cachedMenu.items && cachedMenu.items.length > 0) {
-        console.log('Menú en caché encontrado y listo para uso inmediato');
-        menuData = cachedMenu;
-        // Marcamos el menú como potencialmente obsoleto
-        menuData._fromCache = true;
+      const localMenu = await menuUtils.getMenuFromIndexedDB(menuId);
+      if (localMenu && localMenu.items && localMenu.items.length > 0) {
+        console.log('Menú recuperado desde IndexedDB:', localMenu);
+        menuData = localMenu;
       }
-    } catch (cacheError) {
-      console.warn('No se pudo obtener menú en caché para uso inmediato:', cacheError);
+    } catch (localError) {
+      console.warn('No se pudo obtener el menú desde IndexedDB:', localError);
     }
-    
-    // Si estamos online, intentamos obtener datos frescos del servidor
-    if (isOnline) {
-      console.log(`Obteniendo menú fresco desde el servidor con ID: ${menuId}`);
+
+    // Si no hay datos locales o queremos asegurarnos de tener la versión más reciente,
+    // intentamos obtener el menú desde el servidor
+    if (!menuData || !menuData.items || menuData.items.length === 0) {
+      console.log(`Obteniendo menú desde el servidor con ID: ${menuId}`);
       
       try {
-        // Comprobación real de conexión en paralelo
-        const realConnectionPromise = checkRealConnection();
-        
         // Importamos apiService usando import dinámico para evitar problemas de dependencia circular
         const apiService = await import('./apiService');
         
-        // Verificamos si realmente tenemos conexión
-        const hasRealConnection = await realConnectionPromise;
-        if (!hasRealConnection) {
-          console.warn('Detectada conexión inestable o sin acceso al servidor');
-          isOnline = false;
-          // Si no tenemos conexión real pero tenemos datos en caché, usamos la caché
-          if (menuData) return menuData;
-          // De lo contrario, continuamos con el proceso de fallback
-          throw new Error('Sin conexión real al servidor');
-        }
-        
-        // Ajustar la lógica para manejar mejor los errores en URLs públicas
-        if (!menuData || window.location.href.includes('/websap/menu/')) {
-          try {
-            console.log('Intentando recuperar menú desde el servidor...');
-            const response = await apiService.get(`/platos/menu/${menuId}`);
-            if (response && response.success && response.data) {
-              menuData = response.data;
-              console.log('Menú recuperado desde el servidor:', menuData);
-            } else {
-              console.warn('No se pudo recuperar el menú desde el servidor:', response);
-              throw new Error('No se pudo obtener el menú desde el servidor.');
-            }
-          } catch (serverError) {
-            console.error('Error al recuperar el menú desde el servidor:', serverError);
-            if (!menuData) {
-              throw new Error('No se pudo obtener el menú desde el servidor y no hay datos en caché.');
-            }
-          }
-        }
-
-        // Mantener IndexedDB como respaldo
-        if (!menuData) {
-          try {
-            console.log('Intentando recuperar menú desde IndexedDB...');
-            const menuUtils = await import('./menuUtils');
-            const localMenu = await menuUtils.getMenuFromIndexedDB(menuId);
-            if (localMenu && localMenu.items && localMenu.items.length > 0) {
-              console.log('Menú recuperado desde IndexedDB:', localMenu);
-              menuData = localMenu;
-            } else {
-              console.warn('No se encontró el menú en IndexedDB o no contiene items');
-            }
-          } catch (localError) {
-            console.warn('No se pudo obtener el menú desde IndexedDB:', localError);
-          }
-        }
-
-        // Hacemos la petición al servidor para obtener el menú con timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
-        
-        const response = await Promise.race([
-          apiService.default.get(`/platos/menu/${menuId}`, { signal: controller.signal }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout al obtener menú del servidor')), 8000)
-          )
-        ]);
-        
-        clearTimeout(timeoutId);
+        // Hacemos la petición al servidor para obtener el menú
+        const response = await apiService.default.get(`/platos/menu/${menuId}`);
         
         if (response && response.success && response.data) {
           console.log('Menú recuperado desde el servidor:', response.data);
           menuData = response.data;
-          menuData._fromCache = false; // Marcamos como datos frescos
+        } else {
+          console.warn('No se pudo obtener el menú desde el servidor:', response);
           
-          // Guardar en IndexedDB para tenerlo disponible offline
+          // Si no pudimos obtener el menú desde el servidor y tenemos datos locales, usamos los datos locales
+          if (!menuData) {
+            throw new Error('No se pudo obtener el menú');
+          }
+        }
+      } catch (serverError) {
+        console.error('Error al obtener el menú desde el servidor:', serverError);
+        
+        // Si no pudimos obtener el menú desde el servidor y no tenemos datos locales, intentamos obtenerlo desde la caché
+        if (!menuData) {
+          // Intentar recuperar de localStorage como último recurso
           try {
-            const menuUtils = await import('./menuUtils');
-            await menuUtils.saveMenuToIndexedDB(menuId, menuData);
-            console.log('Menú guardado en IndexedDB correctamente');
-          } catch (saveError) {
-            console.warn('No se pudo guardar el menú en IndexedDB:', saveError);
+            const cachedMenu = localStorage.getItem(`menu_${menuId}`);
+            if (cachedMenu) {
+              menuData = JSON.parse(cachedMenu);
+              console.log('Menú recuperado desde localStorage:', menuData);
+            } else {
+              throw new Error('No se encontró el menú en la caché');
+            }
+          } catch (cacheError) {
+            console.error('Error al recuperar menú desde la caché:', cacheError);
+            throw new Error('No se pudo obtener el menú');
           }
-        } else {
-          console.warn('La respuesta del servidor no contiene datos válidos:', response);
-          // Si tenemos datos en caché y la respuesta del servidor es inválida, usamos la caché
-          if (menuData && menuData._fromCache) {
-            console.log('Usando datos en caché debido a respuesta inválida del servidor');
-            return menuData;
-          }
-          // Pasamos al fallback si no tenemos caché
-        }
-      } catch (error) {
-        console.error('Error al obtener el menú desde el servidor:', error);
-        // Si hay error de conexión pero tenemos datos en caché, usamos la caché
-        if (menuData && menuData._fromCache) {
-          console.log('Usando datos en caché debido a error del servidor');
-          return menuData;
-        }
-        // Si no hay caché, pasamos al fallback completo
-        isOnline = false;
-      }
-    }
-    
-    // Si no pudimos obtener datos del servidor o estamos offline,
-    // intentamos recuperar desde IndexedDB como respaldo principal
-    if (!menuData) {
-      try {
-        console.log('Intentando recuperar menú desde IndexedDB...');
-        const menuUtils = await import('./menuUtils');
-        const localMenu = await menuUtils.getMenuFromIndexedDB(menuId);
-        if (localMenu && localMenu.items && localMenu.items.length > 0) {
-          console.log('Menú recuperado desde IndexedDB:', localMenu);
-          menuData = localMenu;
-        } else {
-          console.warn('No se encontró el menú en IndexedDB o no contiene items');
-        }
-      } catch (localError) {
-        console.warn('No se pudo obtener el menú desde IndexedDB:', localError);
-      }
-      
-      // Si tampoco hay datos en IndexedDB, intentamos recuperar de localStorage como último recurso
-      if (!menuData) {
-        try {
-          console.log('Intentando recuperar menú desde localStorage...');
-          const cachedMenu = localStorage.getItem(`menu_${menuId}`);
-          if (cachedMenu) {
-            menuData = JSON.parse(cachedMenu);
-            console.log('Menú recuperado desde localStorage:', menuData);
-          } else {
-            throw new Error('No se encontró el menú en ninguna caché');
-          }
-        } catch (cacheError) {
-          console.error('Error al recuperar menú desde la caché:', cacheError);
-          throw new Error('No se pudo obtener el menú de ninguna fuente');
         }
       }
     }

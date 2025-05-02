@@ -1,534 +1,337 @@
 <template>
-  <div class="admin-dashboard">
-    <h2>Panel de Control</h2>
+  <div class="dashboard-container">
+    <h2 class="section-title">Dashboard</h2>
     
-    <!-- Panel de carga -->
-    <div v-if="loading" class="loading-panel">
+    <div v-if="loading" class="loading-spinner-container">
       <div class="spinner"></div>
-      <p>Cargando estadísticas del dashboard...</p>
+      <p>Cargando datos...</p>
     </div>
     
-    <!-- Panel de error -->
-    <div v-else-if="error" class="error-panel">
+    <div v-else-if="error" class="error-container">
       <p class="error-message">{{ error }}</p>
-      <button @click="cargarDatos" class="btn btn-retry">Reintentar</button>
+      <button @click="loadStats" class="retry-button">Reintentar</button>
     </div>
     
-    <!-- Contenido del dashboard -->
-    <div v-else-if="dashboardData" class="dashboard-content">
+    <div v-else class="dashboard-content">
       <!-- Tarjetas de estadísticas -->
       <div class="stats-cards">
-        <div class="stat-card">
-          <div class="stat-icon">👤</div>
-          <div class="stat-value">{{ dashboardData.estadisticas.totalUsuarios }}</div>
-          <div class="stat-label">Usuarios</div>
+        <div class="stat-card users">
+          <div class="stat-icon">👥</div>
+          <div class="stat-info">
+            <h3>{{ stats.totalUsers }}</h3>
+            <p>Usuarios Registrados</p>
+          </div>
         </div>
         
-        <div class="stat-card">
+        <div class="stat-card menu">
           <div class="stat-icon">🍽️</div>
-          <div class="stat-value">{{ dashboardData.estadisticas.totalRestaurantes }}</div>
-          <div class="stat-label">Restaurantes</div>
+          <div class="stat-info">
+            <h3>{{ stats.activePayments }}</h3>
+            <p>Pagos Activos</p>
+          </div>
         </div>
         
-        <div class="stat-card">
-          <div class="stat-icon">📝</div>
-          <div class="stat-value">{{ dashboardData.estadisticas.totalPedidos }}</div>
-          <div class="stat-label">Pedidos</div>
-        </div>
-        
-        <div class="stat-card">
+        <div class="stat-card sales">
           <div class="stat-icon">💰</div>
-          <div class="stat-value">{{ formatCurrency(dashboardData.estadisticas.totalVentas) }}</div>
-          <div class="stat-label">Ventas</div>
-        </div>
-      </div>
-      
-      <!-- Gráfico de ventas -->
-      <div class="chart-panel">
-        <h3>Ventas Mensuales</h3>
-        <div class="chart-container">
-          <div class="chart">
-            <div 
-              v-for="(item, index) in dashboardData.graficoVentas" 
-              :key="`venta-${index}`" 
-              class="chart-bar"
-              :style="{ height: calcBarHeight(item.ventas) + '%' }">
-              <span class="chart-tooltip">{{ formatCurrency(item.ventas) }}</span>
-            </div>
-          </div>
-          <div class="chart-labels">
-            <span 
-              v-for="(item, index) in dashboardData.graficoVentas" 
-              :key="`label-${index}`" 
-              class="chart-label">
-              {{ item.mes }}
-            </span>
+          <div class="stat-info">
+            <h3>{{ formatCurrency(stats.totalIncome) }}</h3>
+            <p>Ingresos Totales</p>
           </div>
         </div>
       </div>
       
-      <!-- Paneles inferiores -->
-      <div class="lower-panels">
-        <!-- Restaurantes populares -->
-        <div class="panel">
-          <h3>Restaurantes Populares</h3>
-          <div class="restaurant-list">
-            <div 
-              v-for="(restaurante, index) in dashboardData.restaurantesPopulares" 
-              :key="`rest-${index}`"
-              class="restaurant-item">
-              <div class="restaurant-rank">{{ index + 1 }}</div>
-              <div class="restaurant-info">
-                <div class="restaurant-name">{{ restaurante.nombre }}</div>
-                <div class="restaurant-orders">{{ restaurante.pedidos }} pedidos</div>
-              </div>
+      <!-- Actividad Reciente -->
+      <div class="recent-activity">
+        <h3>Actividad Reciente</h3>
+        <div v-if="stats.recentActivity && stats.recentActivity.length > 0" class="activity-list">
+          <div v-for="(activity, index) in stats.recentActivity" :key="index" class="activity-item">
+            <div class="activity-icon" :class="activity.tipo">
+              <span v-if="activity.tipo === 'user_login'">👤</span>
+              <span v-else-if="activity.tipo === 'system'">📝</span>
+              <span v-else>📝</span>
+            </div>
+            <div class="activity-content">
+              <p><strong>{{ activity.usuario_nombre }}</strong> {{ activity.accion }}</p>
+              <span class="activity-time">{{ formatDate(activity.fecha) }}</span>
             </div>
           </div>
         </div>
-        
-        <!-- Usuarios activos -->
-        <div class="panel">
-          <h3>Usuarios Activos</h3>
-          <div class="user-list">
-            <div 
-              v-for="(usuario, index) in dashboardData.usuariosActivos" 
-              :key="`user-${index}`"
-              class="user-item">
-              <div class="user-avatar">
-                {{ getInitials(usuario.nombre) }}
-              </div>
-              <div class="user-info">
-                <div class="user-name">{{ usuario.nombre }}</div>
-                <div class="user-role">{{ usuario.rol }}</div>
-              </div>
-              <div class="user-access">
-                <span class="access-date">{{ formatDate(usuario.ultimoAcceso) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <p v-else class="no-activity">No hay actividad reciente registrada</p>
       </div>
       
-      <!-- Pie de página del dashboard -->
-      <div class="dashboard-footer">
-        <div class="data-updated">
-          Datos actualizados: {{ fechaActualizacion }}
+      <!-- Estado del Sistema -->
+      <div class="system-status">
+        <h3>Estado del Sistema</h3>
+        <div class="status-info">
+          <p><strong>Estado:</strong> <span :class="'status-' + stats.status.toLowerCase()">{{ stats.status }}</span></p>
+          <p><strong>Último respaldo:</strong> {{ formatDate(stats.lastBackup) }}</p>
+          <p><strong>Usuarios activos:</strong> {{ stats.activeUsers }}</p>
+          <p><strong>Usuarios inactivos:</strong> {{ stats.inactiveUsers }}</p>
         </div>
       </div>
     </div>
     
-    <!-- Sin datos -->
-    <div v-else class="no-data">
-      <p>No hay datos disponibles para mostrar.</p>
-      <button @click="cargarDatos" class="btn btn-retry">Cargar datos</button>
-    </div>
+    <!-- Botón para refrescar -->
+    <button @click="loadStats" class="refresh-button">
+      <span class="refresh-icon">🔄</span> Actualizar Datos
+    </button>
   </div>
 </template>
 
 <script>
-// Importamos el nuevo servicio
-import { obtenerDatosDashboard } from '@/services/adminDashboardService';
+import { ref, onMounted } from 'vue';
+import { getDashboardStats } from '../../services/adminService';
 
 export default {
   name: 'AdminDashboard',
-  
-  data() {
-    return {
-      dashboardData: {
-        estadisticas: {
-          totalUsuarios: 0,
-          totalRestaurantes: 0,
-          totalPedidos: 0,
-          totalVentas: 0
-        },
-        graficoVentas: [],
-        restaurantesPopulares: [],
-        usuariosActivos: []
-      },
-      loading: true,
-      error: null
-    };
-  },
-  
-  async created() {
-    await this.cargarDatosDashboard();
-  },
-  
-  methods: {
-    async cargarDatosDashboard() {
+  setup() {
+    const stats = ref({
+      totalUsers: 0,
+      activeUsers: 0,
+      inactiveUsers: 0,
+      activePayments: 0,
+      pendingPayments: 0,
+      overduePayments: 0,
+      totalIncome: 0,
+      status: 'Normal',
+      lastBackup: null,
+      recentActivity: []
+    });
+    const loading = ref(true);
+    const error = ref(null);
+
+    // Cargar estadísticas del dashboard
+    const loadStats = async () => {
+      loading.value = true;
+      error.value = null;
+      
       try {
         console.log('Cargando estadísticas del dashboard...');
-        this.loading = true;
         
-        const respuesta = await obtenerDatosDashboard();
+        // Intentar obtener los datos del servicio
+        const response = await getDashboardStats();
         
-        if (respuesta && respuesta.success && respuesta.data) {
-          this.dashboardData = respuesta.data;
-          console.log('Datos del dashboard cargados correctamente');
+        if (response && response.success && response.data) {
+          console.log('Estadísticas cargadas correctamente:', response.data);
+          stats.value = response.data;
         } else {
-          console.warn('Respuesta incorrecta del API de dashboard');
-          // No hacemos nada porque el servicio ya proporciona datos de respaldo
+          // Si hay un error en la respuesta, usar datos de respaldo
+          console.warn('Error en la respuesta del servicio, usando datos de respaldo');
+          error.value = response.error || 'Error al cargar las estadísticas';
+          
+          // Mantener los datos actuales si ya teníamos algunos
+          if (stats.value.totalUsers === 0) {
+            // Si no teníamos datos, usar valores por defecto
+            stats.value = {
+              totalUsers: 4,
+              activeUsers: 3,
+              inactiveUsers: 1,
+              activePayments: 28,
+              pendingPayments: 8,
+              overduePayments: 3,
+              totalIncome: 15750000,
+              status: 'Normal',
+              lastBackup: new Date().toISOString(),
+              recentActivity: [
+                {
+                  tipo: 'user_login',
+                  usuario_nombre: 'Admin',
+                  accion: 'inició sesión en el sistema',
+                  fecha: new Date().toISOString()
+                },
+                {
+                  tipo: 'system',
+                  usuario_nombre: 'Sistema',
+                  accion: 'realizó una sincronización de datos',
+                  fecha: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+                }
+              ]
+            };
+          }
         }
-      } catch (error) {
-        console.error('Error al cargar datos del dashboard:', error);
-        // No hacemos nada porque el servicio ya maneja los errores
+      } catch (e) {
+        console.error('Error al cargar estadísticas:', e);
+        error.value = e.message || 'Error al cargar las estadísticas';
+        
+        // Usar datos de respaldo en caso de error
+        if (stats.value.totalUsers === 0) {
+          stats.value = {
+            totalUsers: 4,
+            activeUsers: 3,
+            inactiveUsers: 1,
+            activePayments: 28,
+            pendingPayments: 8,
+            overduePayments: 3,
+            totalIncome: 15750000,
+            status: 'Normal',
+            lastBackup: new Date().toISOString(),
+            recentActivity: [
+              {
+                tipo: 'system',
+                usuario_nombre: 'Sistema',
+                accion: 'inició en modo de respaldo',
+                fecha: new Date().toISOString()
+              }
+            ]
+          };
+        }
       } finally {
-        this.loading = false;
+        loading.value = false;
       }
-    },
-    
-    formatCurrency(value) {
-      return new Intl.NumberFormat('es-ES', {
-        style: 'currency',
-        currency: 'EUR'
-      }).format(value);
-    },
-    
-    formatDate(dateStr) {
+    };
+
+    // Formatear fecha
+    const formatDate = (dateString) => {
+      if (!dateString) return 'No disponible';
+      
       try {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('es-ES', {
+        const date = new Date(dateString);
+        return date.toLocaleString('es-ES', {
+          day: '2-digit',
+          month: '2-digit',
           year: 'numeric',
-          month: 'short',
-          day: 'numeric',
           hour: '2-digit',
           minute: '2-digit'
         });
-      } catch (error) {
-        return dateStr;
+      } catch (e) {
+        console.error('Error al formatear fecha:', e);
+        return dateString;
       }
-    },
-    
-    getInitials(name) {
-      return name
-        .split(' ')
-        .map(word => word[0])
-        .join('')
-        .toUpperCase()
-        .substring(0, 2);
-    },
-    
-    calcBarHeight(value) {
-      if (!this.dashboardData || !this.dashboardData.graficoVentas) return 0;
-      
-      const maxVenta = Math.max(
-        ...this.dashboardData.graficoVentas.map(item => item.ventas)
-      );
-      
-      return (value / maxVenta) * 80; // 80% como altura máxima
-    }
+    };
+
+    // Formatear moneda
+    const formatCurrency = (value) => {
+      return new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0
+      }).format(value);
+    };
+
+    // Cargar datos al montar el componente
+    onMounted(() => {
+      loadStats();
+    });
+
+    return {
+      stats,
+      loading,
+      error,
+      loadStats,
+      formatDate,
+      formatCurrency
+    };
   }
 };
 </script>
 
 <style scoped>
-.admin-dashboard {
-  padding: 20px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
+.dashboard-container {
+  padding: 0;
 }
 
-h2 {
-  margin-bottom: 20px;
+.section-title {
+  font-size: 24px;
+  margin-bottom: 30px;
   color: #333;
+  border-bottom: 2px solid #4CAF50;
+  padding-bottom: 10px;
 }
 
-/* Estilos para el panel de carga */
-.loading-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-}
-
-.spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  border-top: 4px solid #3498db;
-  width: 30px;
-  height: 30px;
-  animation: spin 1s linear infinite;
-  margin-bottom: 15px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Estilos para el panel de error */
-.error-panel {
-  background-color: #ffebee;
-  border-left: 4px solid #f44336;
-  padding: 15px;
-  margin-bottom: 20px;
-  border-radius: 4px;
-}
-
-.error-message {
-  color: #d32f2f;
-  margin: 0 0 10px 0;
-}
-
-.btn-retry {
-  background-color: #2196f3;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.btn-retry:hover {
-  background-color: #1976d2;
-}
-
-/* Estilos para las tarjetas de estadísticas */
-.stats-cards {
+.stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 20px;
-  margin-bottom: 20px;
-}
-
-@media (max-width: 1000px) {
-  .stats-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 600px) {
-  .stats-cards {
-    grid-template-columns: 1fr;
-  }
+  margin-bottom: 30px;
 }
 
 .stat-card {
   background-color: white;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  text-align: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 15px rgba(0,0,0,0.15);
 }
 
 .stat-icon {
-  font-size: 28px;
-  margin-bottom: 10px;
-}
-
-.stat-value {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 5px;
 }
 
-.stat-label {
+.stat-icon.users {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.stat-icon.menus {
+  background-color: #e8f5e9;
+  color: #388e3c;
+}
+
+.stat-icon.sales {
+  background-color: #fff8e1;
+  color: #ffa000;
+}
+
+.stat-icon.system {
+  background-color: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.stat-content h3 {
+  font-size: 24px;
+  margin: 0 0 5px 0;
+  color: #333;
+}
+
+.stat-content p {
+  margin: 0;
   color: #666;
   font-size: 14px;
 }
 
-/* Estilos para el gráfico */
-.chart-panel {
-  background-color: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-}
-
-h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  color: #333;
-}
-
-.chart-container {
-  height: 250px;
-  margin-top: 20px;
-}
-
-.chart {
-  display: flex;
-  align-items: flex-end;
-  height: 200px;
-  gap: 10px;
-}
-
-.chart-bar {
-  flex: 1;
-  background-color: #3498db;
-  min-width: 30px;
-  border-radius: 4px 4px 0 0;
-  position: relative;
-  transition: height 0.3s;
-}
-
-.chart-bar:hover {
-  background-color: #2980b9;
-}
-
-.chart-tooltip {
-  position: absolute;
-  top: -30px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #333;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  opacity: 0;
-  transition: opacity 0.2s;
-  white-space: nowrap;
-}
-
-.chart-bar:hover .chart-tooltip {
-  opacity: 1;
-}
-
-.chart-labels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-}
-
-.chart-label {
-  flex: 1;
-  text-align: center;
-  font-size: 12px;
-  color: #666;
-  min-width: 30px;
-}
-
-/* Estilos para paneles inferiores */
-.lower-panels {
+.dashboard-actions {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-top: 30px;
 }
 
-@media (max-width: 768px) {
-  .lower-panels {
-    grid-template-columns: 1fr;
-  }
-}
-
-.panel {
-  background-color: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* Estilos para lista de restaurantes */
-.restaurant-item {
-  display: flex;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.restaurant-item:last-child {
-  border-bottom: none;
-}
-
-.restaurant-rank {
-  width: 24px;
-  height: 24px;
-  background-color: #f5f5f5;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  color: #333;
-  margin-right: 12px;
-}
-
-.restaurant-info {
-  flex: 1;
-}
-
-.restaurant-name {
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-
-.restaurant-orders {
-  font-size: 12px;
-  color: #666;
-}
-
-/* Estilos para lista de usuarios */
-.user-item {
-  display: flex;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.user-item:last-child {
-  border-bottom: none;
-}
-
-.user-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background-color: #3498db;
+.action-button {
+  background-color: #4CAF50;
   color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 15px 20px;
+  cursor: pointer;
+  font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  margin-right: 12px;
+  gap: 10px;
+  transition: all 0.3s ease;
 }
 
-.user-info {
-  flex: 1;
+.action-button:hover {
+  background-color: #45a049;
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
 }
 
-.user-name {
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-
-.user-role {
-  font-size: 12px;
-  color: #666;
-}
-
-.user-access {
-  font-size: 12px;
-  color: #888;
-}
-
-/* Estilos para pie de página */
-.dashboard-footer {
-  margin-top: 20px;
-  padding-top: 10px;
-  border-top: 1px solid #eee;
-  color: #888;
-  font-size: 12px;
-  text-align: right;
-}
-
-/* Sin datos */
-.no-data {
-  padding: 40px;
-  text-align: center;
-  background-color: #f5f5f5;
-  border-radius: 8px;
-  color: #666;
+.action-icon {
+  font-size: 20px;
 }
 </style>

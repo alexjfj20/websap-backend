@@ -4,14 +4,8 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-// Importar la función getBusinessInfo del servicio de almacenamiento
-import { getBusinessInfo } from './services/storageService';
-
-// Importar configuración (para entorno Node.js)
-const apiConfig = require('./config/apiConfig').default;
-
 // URL base de la API
-const API_URL = apiConfig ? apiConfig.API_URL : 'http://localhost:3000/api';
+const API_URL = 'http://localhost:3000/api';
 
 // Función para obtener el token de autenticación
 async function getAuthToken() {

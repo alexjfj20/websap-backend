@@ -1,6 +1,6 @@
-import apiConfig from '../config/apiConfig';
+import axios from 'axios';
 
-const API_URL = apiConfig.API_URL;
+const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3000/api';
 
 // Función simple para obtener el token de autenticación del almacenamiento local
 function getAuthHeader() {
