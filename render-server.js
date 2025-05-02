@@ -49,10 +49,18 @@ if (fs.existsSync(serverFile)) {
   console.log('--- Configuración del servidor ---');
   console.log('NODE_ENV:', process.env.NODE_ENV);
   console.log('Puerto:', process.env.PORT);
-  console.log('CORS Origin:', process.env.CORS_ORIGIN);
-  // Cargar el servidor principal
+  console.log('CORS Origin:', process.env.CORS_ORIGIN);  // Cargar el corrector de rutas de importación
   try {
-    // Primero intentar con server-fixed.js si existe
+    const fixImportPathsFile = path.join(process.cwd(), 'fix-import-paths.js');
+    if (fs.existsSync(fixImportPathsFile)) {
+      console.log('✅ Encontrado: fix-import-paths.js');
+      console.log('🔄 Activando corrector de rutas de importación...');
+      require('./fix-import-paths');
+    } else {
+      console.log('⚠️ No se encontró el corrector de rutas. Las importaciones podrían fallar.');
+    }
+    
+    // Cargar el servidor principal
     const serverFixedFile = path.join(process.cwd(), 'server-fixed.js');
     if (fs.existsSync(serverFixedFile)) {
       console.log('✅ Encontrado: server-fixed.js');
