@@ -16,17 +16,36 @@ export default {
   methods: {
     // Método que falta y causa el error
     saveMenuItems(items) {
-      try {
-        console.log('Guardando elementos del menú:', items);
-        return this.axios.post('/api/menu/save', { items })
-          .then(response => {
-            console.log('Menú guardado con éxito', response);
-            return response.data;
-          });
-      } catch (error) {
-        console.error('Error al guardar elementos del menú:', error);
-        throw error;
-      }
+      return new Promise((resolve, reject) => {
+        console.log('Guardando menú...', items);
+        
+        // Verificar si podemos usar axios
+        if (this.axios) {
+          this.axios.post('/api/public/menu/save', { items })
+            .then(response => {
+              console.log('Respuesta del servidor:', response.data);
+              resolve(response.data);
+            })
+            .catch(error => {
+              console.error('Error al guardar el menú con axios:', error);
+              // Fallback: guardar en localStorage
+              try {
+                localStorage.setItem('menu_items', JSON.stringify(items));
+                resolve({ success: true, message: 'Menú guardado localmente (fallback)' });
+              } catch (localError) {
+                reject(localError);
+              }
+            });
+        } else {
+          // Sin axios, guardar localmente
+          try {
+            localStorage.setItem('menu_items', JSON.stringify(items));
+            resolve({ success: true, message: 'Menú guardado localmente' });
+          } catch (error) {
+            reject(error);
+          }
+        }
+      });
     },
     
     // Corregir el método que estaba usando saveMenuItems

@@ -85,6 +85,7 @@ console.log('Iniciando carga de rutas API...');
 const fs = require('fs');
 const apiPath = './src/server/routes/api.js';
 const publicApiPath = './src/server/routes/public-api.js';
+const authApiPath = './src/server/routes/auth.js';
 
 // Función para verificar la existencia de un archivo
 function fileExists(path) {
@@ -98,6 +99,7 @@ function fileExists(path) {
 
 console.log(`Verificando rutas API: ${apiPath} - ${fileExists(apiPath) ? 'Existe' : 'No existe'}`);
 console.log(`Verificando rutas públicas: ${publicApiPath} - ${fileExists(publicApiPath) ? 'Existe' : 'No existe'}`);
+console.log(`Verificando rutas auth: ${authApiPath} - ${fileExists(authApiPath) ? 'Existe' : 'No existe'}`);
 
 // Importar y usar las rutas API principales
 try {
@@ -131,6 +133,24 @@ try {
   app.use('/api/public', (req, res) => {
     res.status(500).json({ 
       error: 'Error al cargar las rutas públicas de la API',
+      message: error.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
+    });
+  });
+}
+
+// Importar y usar las rutas de autenticación
+try {
+  console.log('Importando rutas de autenticación...');
+  const authRoutes = require('./src/server/routes/auth');
+  app.use('/api/auth', authRoutes);
+  console.log('✅ Rutas de autenticación cargadas correctamente');
+} catch (error) {
+  console.error('❌ Error al cargar las rutas de autenticación:', error);
+  // Ruta de contingencia específica para las rutas de autenticación
+  app.use('/api/auth', (req, res) => {
+    res.status(500).json({ 
+      error: 'Error al cargar las rutas de autenticación',
       message: error.message,
       stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
     });
