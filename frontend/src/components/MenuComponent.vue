@@ -14,12 +14,10 @@ export default {
     };
   },
   methods: {
-    // Añadiendo el método que falta
+    // Método que falta y causa el error
     saveMenuItems(items) {
       try {
         console.log('Guardando elementos del menú:', items);
-        // Aquí va la lógica para guardar los elementos del menú
-        // Por ejemplo, una llamada a la API:
         return this.axios.post('/api/menu/save', { items })
           .then(response => {
             console.log('Menú guardado con éxito', response);
