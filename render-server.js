@@ -102,14 +102,29 @@ if (fs.existsSync(serverFile)) {
         { id: 2, name: "Hamburguesa Clásica", price: 7.50, category: "Hamburguesas" }
       ]);
     });
-    
-    app.post('/api/auth/login', (req, res) => {
-      const { username, password } = req.body;
+      app.post('/api/auth/login', (req, res) => {
+      const { username, password, email } = req.body;
       
-      if (username === 'admin' && password === 'admin123') {
+      // Credenciales con email
+      const validCredentials = [
+        { username: 'admin', email: 'admin@websap.com', password: 'admin123', name: 'Administrador', role: 'admin', id: 1 },
+        { username: 'empleado', email: 'empleado@websap.com', password: 'empleado123', name: 'Empleado Demo', role: 'employee', id: 2 }
+      ];
+      
+      // Verificar autenticación por username o email
+      const user = validCredentials.find(u => 
+        (u.username === username || u.email === username || u.email === email) && 
+        u.password === password
+      );
+      
+      if (user) {
+        // Crear una copia sin la contraseña
+        const userResponse = { ...user };
+        delete userResponse.password;
+        
         res.json({
           success: true,
-          user: { id: 1, username: 'admin', name: 'Administrador', role: 'admin' },
+          user: userResponse,
           token: 'emergency-token-' + Date.now()
         });
       } else {
