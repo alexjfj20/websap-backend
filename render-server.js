@@ -50,12 +50,20 @@ if (fs.existsSync(serverFile)) {
   console.log('NODE_ENV:', process.env.NODE_ENV);
   console.log('Puerto:', process.env.PORT);
   console.log('CORS Origin:', process.env.CORS_ORIGIN);
-
   // Cargar el servidor principal
   try {
-    require('./server');
+    // Primero intentar con server-fixed.js si existe
+    const serverFixedFile = path.join(process.cwd(), 'server-fixed.js');
+    if (fs.existsSync(serverFixedFile)) {
+      console.log('✅ Encontrado: server-fixed.js');
+      console.log('🚀 Usando servidor con rutas corregidas...');
+      require('./server-fixed');
+    } else {
+      console.log('🚀 Usando servidor original...');
+      require('./server');
+    }
   } catch (error) {
-    console.error('❌ Error al cargar server.js:', error);
+    console.error('❌ Error al cargar servidor:', error);
     
     // Iniciar un servidor de emergencia
     console.log('⚠️ Iniciando servidor de emergencia...');
