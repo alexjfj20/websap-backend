@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnóstico de WebSAP</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #2c3e50;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .warning {
+      color: orange;
+      font-weight: bold;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 15px;
+      background-color: #f9f9f9;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 14px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+    th, td {
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <h1>Diagnóstico de WebSAP</h1>
+  
+  <div class="card">
+    <h2>Información del Servidor</h2>
+    <p>URL actual: <span id="current-url"></span></p>
+    <p>Protocolo: <span id="protocol"></span></p>
+    <p>Nombre de host: <span id="hostname"></span></p>
+    <p>Ruta base: <span id="pathname"></span></p>
+    <p>User Agent: <span id="user-agent"></span></p>
+  </div>
+  
+  <div class="card">
+    <h2>Verificación de Archivos Críticos</h2>
+    <button onclick="checkFiles()">Verificar archivos</button>
+    <div id="file-results">
+      <p>Presiona el botón para verificar si los archivos necesarios están disponibles.</p>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Verificación de Configuración .htaccess</h2>
+    <button onclick="testHtaccess()">Probar redirección</button>
+    <div id="htaccess-results">
+      <p>Esta prueba verificará si la configuración de .htaccess está funcionando correctamente.</p>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Verificación de API</h2>
+    <button onclick="testAPI()">Probar API</button>
+    <div id="api-results">
+      <p>Esta prueba verificará si la API está respondiendo correctamente.</p>
+    </div>
+  </div>
+
+  <script>
+    // Información del servidor
+    document.getElementById('current-url').textContent = window.location.href;
+    document.getElementById('protocol').textContent = window.location.protocol;
+    document.getElementById('hostname').textContent = window.location.hostname;
+    document.getElementById('pathname').textContent = window.location.pathname;
+    document.getElementById('user-agent').textContent = navigator.userAgent;
+    
+    // Función para verificar archivos
+    async function checkFiles() {
+      const filesToCheck = [
+        'index.html',
+        'js/app.js',
+        'js/chunk-vendors.js',
+        'css/app.css',
+        '.htaccess'
+      ];
+      
+      const resultsElement = document.getElementById('file-results');
+      resultsElement.innerHTML = '<p>Verificando archivos...</p>';
+      
+      let html = '<table><tr><th>Archivo</th><th>Estado</th></tr>';
+      
+      for (const file of filesToCheck) {
+        try {
+          const response = await fetch(file, { method: 'HEAD' });
+          if (response.ok) {
+            html += `<tr><td>${file}</td><td class="success">✅ Disponible</td></tr>`;
+          } else {
+            html += `<tr><td>${file}</td><td class="error">❌ No encontrado (Estado: ${response.status})</td></tr>`;
+          }
+        } catch (error) {
+          html += `<tr><td>${file}</td><td class="error">❌ Error: ${error.message}</td></tr>`;
+        }
+      }
+      
+      html += '</table>';
+      resultsElement.innerHTML = html;
+    }
+    
+    // Función para probar .htaccess
+    function testHtaccess() {
+      const resultsElement = document.getElementById('htaccess-results');
+      resultsElement.innerHTML = '<p>Probando redirección...</p>';
+      
+      // Crear una ruta que no debería existir físicamente
+      const testRoute = `/websap/test-route-${Date.now()}`;
+      
+      // Crear un iframe para probar la redirección sin navegar fuera de esta página
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      
+      // Manejar la carga del iframe
+      iframe.onload = function() {
+        try {
+          // Si podemos acceder al título, significa que se cargó una página HTML
+          // (probablemente index.html debido a la redirección)
+          const iframeTitle = iframe.contentWindow.document.title;
+          
+          if (iframeTitle && iframeTitle.includes('WebSAP')) {
+            resultsElement.innerHTML = `
+              <p class="success">✅ Redirección exitosa!</p>
+              <p>La configuración de .htaccess parece estar funcionando correctamente.</p>
+              <p>La ruta de prueba "${testRoute}" redirigió a una página con título: "${iframeTitle}"</p>
+            `;
+          } else {
+            resultsElement.innerHTML = `
+              <p class="warning">⚠️ Resultado indeterminado</p>
+              <p>La redirección funcionó, pero el título no contiene "WebSAP".</p>
+              <p>Título detectado: "${iframeTitle || 'No detectado'}"</p>
+            `;
+          }
+        } catch (e) {
+          resultsElement.innerHTML = `
+            <p class="error">❌ Error al acceder al contenido del iframe</p>
+            <p>Esto puede deberse a restricciones de seguridad o a que la redirección no funcionó.</p>
+            <p>Error: ${e.message}</p>
+          `;
+        }
+        
+        // Limpieza del iframe
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1000);
+      };
+      
+      // Manejar errores
+      iframe.onerror = function() {
+        resultsElement.innerHTML = `
+          <p class="error">❌ Error al cargar el iframe</p>
+          <p>La redirección no parece estar funcionando correctamente.</p>
+        `;
+        document.body.removeChild(iframe);
+      };
+      
+      // Iniciar la prueba
+      iframe.src = testRoute;
+    }
+    
+    // Función para probar la API
+    async function testAPI() {
+      const resultsElement = document.getElementById('api-results');
+      resultsElement.innerHTML = '<p>Probando conexión a la API...</p>';
+      
+      // URLs de API a probar
+      const endpoints = [
+        '/api/public/menu',
+        '/api/auth/login'
+      ];
+      
+      let html = '<table><tr><th>Endpoint</th><th>Estado</th><th>Respuesta</th></tr>';
+      
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint);
+          const responseText = await response.text();
+          
+          let shortResponse;
+          try {
+            // Intentar parsear como JSON para mostrarlo mejor
+            const json = JSON.parse(responseText);
+            shortResponse = JSON.stringify(json).substring(0, 100) + (JSON.stringify(json).length > 100 ? '...' : '');
+          } catch (e) {
+            // Si no es JSON, mostrar los primeros 100 caracteres
+            shortResponse = responseText.substring(0, 100) + (responseText.length > 100 ? '...' : '');
+          }
+          
+          if (response.ok) {
+            html += `<tr><td>${endpoint}</td><td class="success">✅ OK (${response.status})</td><td>${shortResponse}</td></tr>`;
+          } else {
+            html += `<tr><td>${endpoint}</td><td class="error">❌ Error (${response.status})</td><td>${shortResponse}</td></tr>`;
+          }
+        } catch (error) {
+          html += `<tr><td>${endpoint}</td><td class="error">❌ Error</td><td>${error.message}</td></tr>`;
+        }
+      }
+      
+      html += '</table>';
+      resultsElement.innerHTML = html;
+    }
+  </script>
+</body>
+</html>

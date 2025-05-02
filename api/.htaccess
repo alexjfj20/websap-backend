@@ -1,0 +1,31 @@
+# Configuración especial para la carpeta api
+# Este archivo redirige todas las solicitudes a los archivos PHP correspondientes
+
+# Habilitar el motor de reescritura
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  
+  # Si el archivo o directorio no existe
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # Redireccionar cualquier solicitud a index.php en el directorio correspondiente
+  RewriteRule ^(.*)$ index.php [L]
+</IfModule>
+
+# Configurar encabezados para API
+<IfModule mod_headers.c>
+  # Permitir CORS
+  Header set Access-Control-Allow-Origin "*"
+  Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+  Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+  
+  # Prevenir cacheo de respuestas de API
+  Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  Header set Pragma "no-cache"
+</IfModule>
+
+# Configurar el tipo de contenido para JSON
+<IfModule mod_mime.c>
+  AddType application/json .json
+</IfModule>

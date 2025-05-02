@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <base href="/websap/">
+  <title>WebSAP - Sistema de Administración de Restaurantes</title>
+  <meta name="description" content="WebSAP - Sistema de Administración de Restaurantes">
+  
+  <!-- Favicon -->
+  <link rel="icon" href="img/favicon.ico">
+  
+  <!-- Precargar recursos críticos -->
+  <link rel="preload" href="js/app.js" as="script">
+  <link rel="preload" href="js/chunk-vendors.js" as="script">
+  <link rel="preload" href="css/app.css" as="style">
+  
+  <!-- Estilos -->
+  <link rel="stylesheet" href="css/app.css">
+  
+  <!-- Scripts de diagnóstico -->
+  <script>
+    // Script para detectar problemas de carga
+    window.addEventListener('error', function(e) {
+      console.error('Error de carga:', e.target.src || e.target.href);
+      document.getElementById('error-message').style.display = 'block';
+      document.getElementById('error-details').textContent = 'Error al cargar: ' + (e.target.src || e.target.href);
+    }, true);
+  </script>
+</head>
+<body>
+  <div id="app">
+    <!-- Contenido de carga mientras la aplicación se inicializa -->
+    <div style="text-align: center; padding-top: 100px; font-family: Arial, sans-serif;">
+      <h2>Cargando WebSAP...</h2>
+      <p>Por favor espere mientras se inicializa la aplicación</p>
+      <div style="width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; margin: 20px auto; animation: spin 2s linear infinite;"></div>
+      
+      <!-- Mensaje de error oculto por defecto -->
+      <div id="error-message" style="display: none; color: red; margin-top: 20px;">
+        <p><strong>Error al cargar la aplicación</strong></p>
+        <p>Por favor recarga la página o contacta al administrador.</p>
+        <p>Detalles del error: <span id="error-details"></span></p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Scripts de la aplicación -->
+  <script src="js/chunk-vendors.js"></script>
+  <script src="js/app.js"></script>
+  
+  <style>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</body>
+</html>
