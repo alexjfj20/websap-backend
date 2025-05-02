@@ -1,44 +1,43 @@
+// Servidor principal de la aplicación
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
+const dotenv = require('dotenv');
 
+// Cargar variables de entorno
+dotenv.config();
+
+// Crear la aplicación Express
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Middleware para servir archivos estáticos
-app.use(express.static('public'));
-
-// Middleware para CORS
+// Middleware
 app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Middleware para parsear JSON y URL encoded
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+// Rutas básicas
+app.get('/', (req, res) => {
+  res.json({ message: 'API de WebSAP Backend funcionando' });
+});
 
-// Importa y usa las rutas
-const syncRoutes = require('./src/server/routes/api');  
-app.use('/api/sync', syncRoutes);  
-console.log("🚀 Rutas de /api/sync registradas correctamente");
+// Importar y usar rutas de la API
+try {
+  const apiRoutes = require('./src/server/routes/api');
+  app.use('/api', apiRoutes);
+} catch (error) {
+  console.error('Error al cargar las rutas de la API:', error);
+  // Ruta de contingencia
+  app.use('/api', (req, res) => {
+    res.status(500).json({ error: 'Error al cargar las rutas de la API' });
+  });
+}
 
-// Ruta de prueba para verificar que el servidor está activo
-app.get('/api/ping', (req, res) => {
-  res.setHeader('Content-Type', 'text/plain');
-  res.status(200).send('pong');
+// Manejador de rutas no encontradas
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
 // Iniciar el servidor
-const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Servidor ejecutándose en puerto ${PORT}`);
-
-  // Listar todas las rutas registradas con sus métodos
-  app._router.stack.forEach((r) => {
-    if (r.route && r.route.path) {
-      const methods = Object.keys(r.route.methods)
-        .map((method) => method.toUpperCase())
-        .join(', ');
-      console.log(`📌 Ruta activa: ${methods} ${r.route.path}`);
-    }
-  });
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
