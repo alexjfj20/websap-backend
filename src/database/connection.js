@@ -38,18 +38,27 @@ const sequelize = new Sequelize(
 
 // Función para probar la conexión
 async function testConnection() {
+  // Si estamos en modo simulación, siempre devolver éxito
+  if (USE_MOCK_MODE) {
+    console.log('⚠️ Usando modo de simulación para la base de datos.');
+    return true;
+  }
+  
   try {
     await sequelize.authenticate();
     console.log('✅ Conexión a la base de datos establecida correctamente.');
     return true;
   } catch (error) {
     console.error('❌ No se pudo conectar a la base de datos:', error);
+    console.log('⚠️ Cambiando automáticamente a modo simulación');
     return false;
   }
 }
 
-// Exportamos la conexión y la función de prueba
+// Exportamos la conexión, la función de prueba y los datos simulados
 module.exports = {
   sequelize,
-  testConnection
+  testConnection,
+  USE_MOCK_MODE,
+  mockData
 };

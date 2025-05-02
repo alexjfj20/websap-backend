@@ -22,13 +22,24 @@ try {
   };
 }
 
-// Importar datos de simulación para usar si la base de datos no está disponible
-const mockData = require('../../database/mock-data');
+// No necesitamos importar mockData directamente, ahora viene de db
+// const mockData = require('../../database/mock-data');
 
 // Ruta para obtener el menú público
 router.get('/menu', async (req, res) => {
   try {
     console.log('Solicitando menú público');
+    
+    // Verificar si estamos en modo simulación
+    if (db.USE_MOCK_MODE) {
+      console.log('Modo simulación activo, usando datos simulados para el menú');
+      const menuItems = await db.mockData.getMenuItems();
+      
+      // Añadir encabezado para indicar que son datos simulados
+      res.set('X-Data-Source', 'simulated');
+      res.json(menuItems);
+      return;
+    }
     
     // Verificar si la base de datos está conectada
     if (db.sequelize && await db.testConnection()) {
@@ -62,7 +73,7 @@ router.get('/menu', async (req, res) => {
     // Si llegamos aquí, la base de datos no está disponible o no hay datos
     // Usar datos simulados
     console.log('Usando datos simulados para el menú');
-    const menuItems = await mockData.getMenuItems();
+    const menuItems = await db.mockData.getMenuItems();
     
     // Añadir encabezado para indicar que son datos simulados
     res.set('X-Data-Source', 'simulated');
@@ -73,7 +84,7 @@ router.get('/menu', async (req, res) => {
     // Incluso en caso de error, ofrecer datos simulados
     console.log('Fallback: Usando datos simulados después de error');
     res.set('X-Data-Source', 'simulated-fallback');
-    res.json(await mockData.getMenuItems());
+    res.json(await db.mockData.getMenuItems());
   }
 });
 
