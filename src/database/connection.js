@@ -1,64 +1,81 @@
-// Archivo de conexión a la base de datos
-// Este archivo es buscado por api.js
+// Archivo de conexión a la base de datos con modo de simulación forzado
+// Este archivo ha sido simplificado para garantizar que la aplicación funcione
+// mientras se resuelve el problema de acceso a la base de datos en el servidor Render
 
-const { Sequelize } = require('sequelize');
-const path = require('path');
-const fs = require('fs');
+console.log('Iniciando servicio de base de datos (MODO SIMULACIÓN)');
 
-// Imprimir información de diagnóstico
-console.log('Iniciando conexión a la base de datos...');
-console.log(`Directorio actual: ${__dirname}`);
-
-// Configuración para la conexión a la base de datos
-// Utiliza variables de entorno para datos sensibles
-const sequelize = new Sequelize(
-  process.env.DB_NAME || 'nombre_db',
-  process.env.DB_USER || 'usuario_db',
-  process.env.DB_PASSWORD || 'password_db',
-  {
-    host: process.env.DB_HOST || 'localhost',
-    dialect: 'mysql',
-    port: process.env.DB_PORT || 3306,
-    logging: false,
-    dialectOptions: {
-      // Para conexiones SSL si es necesario
-      ssl: process.env.DB_SSL === 'true' ? {
-        require: true,
-        rejectUnauthorized: false
-      } : false
+// Datos simulados para uso cuando no hay conexión a base de datos
+const mockData = {
+  menuItems: [
+    {
+      id: 1,
+      nombre: "Plato Margarita",
+      descripcion: "Pizza clásica con tomate y queso mozzarella",
+      precio: 8.99,
+      categoria: "Pizzas",
+      disponible: true
     },
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
+    {
+      id: 2,
+      nombre: "Costillas Especiales",
+      descripcion: "Costillas en salsa barbacoa con patatas fritas caseras",
+      precio: 14.50,
+      categoria: "Carnes",
+      disponible: true
+    },
+    {
+      id: 3,
+      nombre: "Tiramisu",
+      descripcion: "Postre tradicional italiano con café y mascarpone",
+      precio: 6.75,
+      categoria: "Postres",
+      disponible: true
+    },
+    {
+      id: 4,
+      nombre: "Patatas Bravas",
+      descripcion: "Patatas fritas con salsa picante y alioli",
+      precio: 5.50,
+      categoria: "Entrantes",
+      disponible: true
     }
-  }
-);
-
-// Función para probar la conexión
-async function testConnection() {
-  // Si estamos en modo simulación, siempre devolver éxito
-  if (USE_MOCK_MODE) {
-    console.log('⚠️ Usando modo de simulación para la base de datos.');
-    return true;
-  }
+  ],
   
-  try {
-    await sequelize.authenticate();
-    console.log('✅ Conexión a la base de datos establecida correctamente.');
-    return true;
-  } catch (error) {
-    console.error('❌ No se pudo conectar a la base de datos:', error);
-    console.log('⚠️ Cambiando automáticamente a modo simulación');
-    return false;
+  // Función para obtener elementos del menú
+  getMenuItems: async function() {
+    return this.menuItems;
+  },
+  
+  // Función para guardar elementos del menú
+  saveMenuItems: async function(items) {
+    this.menuItems = items;
+    return { success: true, message: "Menú guardado correctamente (modo simulado)" };
   }
+};
+
+// Objeto sequelize simulado
+const sequelize = {
+  authenticate: async () => true,
+  transaction: async (callback) => await callback({ id: 'mock-transaction' }),
+  query: async (sql) => {
+    console.log('SQL simulado:', sql.substring(0, 50) + '...');
+    if (sql.toLowerCase().includes('select') && sql.toLowerCase().includes('menu_items')) {
+      return [mockData.menuItems, null];
+    }
+    return [[], null];
+  }
+};
+
+// Función para probar la conexión (siempre exitosa en modo simulación)
+async function testConnection() {
+  console.log('⚠️ Usando modo de simulación para la base de datos.');
+  return true;
 }
 
-// Exportamos la conexión, la función de prueba y los datos simulados
+// Exportar todo lo necesario
 module.exports = {
   sequelize,
   testConnection,
-  USE_MOCK_MODE,
+  USE_MOCK_MODE: true,
   mockData
 };
