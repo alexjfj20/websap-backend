@@ -1,7 +1,26 @@
 // Rutas públicas de la API (no requieren autenticación)
 const express = require('express');
 const router = express.Router();
-const db = require('../../database/connection');
+
+// Importar la conexión a la base de datos con manejo de errores
+let db;
+try {
+  console.log('Intentando importar el módulo de conexión a la base de datos para rutas públicas...');
+  // Usar path.join para crear una ruta absoluta que funcione en cualquier entorno
+  const path = require('path');
+  const dbPath = path.join(__dirname, '../../database/connection');
+  console.log(`Ruta de búsqueda para public-api: ${dbPath}`);
+  
+  db = require(dbPath);
+  console.log('✅ Módulo de base de datos importado correctamente en public-api');
+} catch (error) {
+  console.error('❌ Error al importar el módulo de base de datos en public-api:', error);
+  // Crear un objeto de sustitución para evitar errores
+  db = {
+    sequelize: null,
+    testConnection: () => Promise.resolve(false)
+  };
+}
 
 // Ruta para obtener el menú público
 router.get('/menu', async (req, res) => {

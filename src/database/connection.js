@@ -2,6 +2,12 @@
 // Este archivo es buscado por api.js
 
 const { Sequelize } = require('sequelize');
+const path = require('path');
+const fs = require('fs');
+
+// Imprimir información de diagnóstico
+console.log('Iniciando conexión a la base de datos...');
+console.log(`Directorio actual: ${__dirname}`);
 
 // Configuración para la conexión a la base de datos
 // Utiliza variables de entorno para datos sensibles
@@ -34,10 +40,10 @@ const sequelize = new Sequelize(
 async function testConnection() {
   try {
     await sequelize.authenticate();
-    console.log('Conexión a la base de datos establecida correctamente.');
+    console.log('✅ Conexión a la base de datos establecida correctamente.');
     return true;
   } catch (error) {
-    console.error('No se pudo conectar a la base de datos:', error);
+    console.error('❌ No se pudo conectar a la base de datos:', error);
     return false;
   }
 }
