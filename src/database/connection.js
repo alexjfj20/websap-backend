@@ -1,81 +1,71 @@
-// Archivo de conexión a la base de datos con modo de simulación forzado
-// Este archivo ha sido simplificado para garantizar que la aplicación funcione
-// mientras se resuelve el problema de acceso a la base de datos en el servidor Render
+// Módulo de conexión a la base de datos MySQL
+const mysql = require('mysql2/promise');
+const dotenv = require('dotenv');
 
-console.log('Iniciando servicio de base de datos (MODO SIMULACIÓN)');
+// Cargar variables de entorno
+dotenv.config();
 
-// Datos simulados para uso cuando no hay conexión a base de datos
-const mockData = {
-  menuItems: [
-    {
-      id: 1,
-      nombre: "Plato Margarita",
-      descripcion: "Pizza clásica con tomate y queso mozzarella",
-      precio: 8.99,
-      categoria: "Pizzas",
-      disponible: true
-    },
-    {
-      id: 2,
-      nombre: "Costillas Especiales",
-      descripcion: "Costillas en salsa barbacoa con patatas fritas caseras",
-      precio: 14.50,
-      categoria: "Carnes",
-      disponible: true
-    },
-    {
-      id: 3,
-      nombre: "Tiramisu",
-      descripcion: "Postre tradicional italiano con café y mascarpone",
-      precio: 6.75,
-      categoria: "Postres",
-      disponible: true
-    },
-    {
-      id: 4,
-      nombre: "Patatas Bravas",
-      descripcion: "Patatas fritas con salsa picante y alioli",
-      precio: 5.50,
-      categoria: "Entrantes",
-      disponible: true
-    }
-  ],
-  
-  // Función para obtener elementos del menú
-  getMenuItems: async function() {
-    return this.menuItems;
-  },
-  
-  // Función para guardar elementos del menú
-  saveMenuItems: async function(items) {
-    this.menuItems = items;
-    return { success: true, message: "Menú guardado correctamente (modo simulado)" };
-  }
+// Variables de entorno para la base de datos
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASS || '',
+  database: process.env.DB_NAME || 'websap',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 };
 
-// Objeto sequelize simulado
-const sequelize = {
-  authenticate: async () => true,
-  transaction: async (callback) => await callback({ id: 'mock-transaction' }),
-  query: async (sql) => {
-    console.log('SQL simulado:', sql.substring(0, 50) + '...');
-    if (sql.toLowerCase().includes('select') && sql.toLowerCase().includes('menu_items')) {
-      return [mockData.menuItems, null];
-    }
-    return [[], null];
-  }
-};
+// Variable para almacenar el pool de conexiones
+let pool;
 
-// Función para probar la conexión (siempre exitosa en modo simulación)
-async function testConnection() {
-  console.log('⚠️ Usando modo de simulación para la base de datos.');
-  return true;
+// Función para inicializar la conexión a la base de datos
+async function initializeDatabase() {
+  try {
+    console.log('Iniciando conexión a la base de datos...');
+    console.log(`Host: ${dbConfig.host}, Usuario: ${dbConfig.user}, Base de datos: ${dbConfig.database}`);
+    
+    // Crear el pool de conexiones
+    pool = mysql.createPool(dbConfig);
+    
+    // Verificar la conexión
+    const connection = await pool.getConnection();
+    console.log('✅ Conexión a la base de datos establecida correctamente');
+    connection.release();
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Error al conectar a la base de datos:', error.message);
+    
+    // Si estamos en producción, activar el modo de simulación como fallback
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ Activando modo de simulación como fallback');
+      return false;
+    }
+    
+    throw error;
+  }
 }
 
-// Exportar todo lo necesario
+// Función para ejecutar consultas SQL
+async function query(sql, params) {
+  try {
+    const [results] = await pool.execute(sql, params);
+    return results;
+  } catch (error) {
+    console.error('Error en consulta SQL:', error);
+    throw error;
+  }
+}
+
+// Función para obtener el pool de conexiones
+function getPool() {
+  return pool;
+}
+
+// Exportar las funciones
 module.exports = {
-  sequelize,
-  testConnection,
-  USE_MOCK_MODE: true,
-  mockData
+  initializeDatabase,
+  query,
+  getPool
 };

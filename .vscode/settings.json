@@ -1,4 +1,3 @@
 {
-    "terminal.integrated.scrollback": 10000,
-    "git.ignoreLimitWarning": true
+    "terminal.integrated.scrollback": 10000
 }

@@ -1,53 +1,81 @@
 // src/server/routes/api.js
 const express = require('express');
 const router = express.Router();
+const db = require('../database/connection'); // Asegúrate de que la ruta es correcta
 
-// Importar la conexión a la base de datos con manejo de errores
-let db;
-try {
-  console.log('Intentando importar el módulo de conexión a la base de datos...');
-  // Usar path.join para crear una ruta absoluta que funcione en cualquier entorno
-  const path = require('path');
-  const dbPath = path.join(__dirname, '../../database/connection');
-  console.log(`Ruta de búsqueda: ${dbPath}`);
-  
-  db = require(dbPath);
-  console.log('✅ Módulo de base de datos importado correctamente');
-} catch (error) {
-  console.error('❌ Error al importar el módulo de base de datos:', error);
-  // Crear un objeto de sustitución para evitar errores
-  db = {
-    sequelize: null,
-    testConnection: () => Promise.resolve(false)
-  };
-}
+// Endpoint para sincronización de platos
+router.post('/api/sync/platos', async (req, res) => {
+  try {
+    console.log('Recibida solicitud de sincronización de platos', req.body);
 
-// Verificar la conexión a la base de datos
-db.testConnection()
-  .then(success => {
-    if (success) {
-      console.log('API lista para manejar peticiones con acceso a la base de datos');
-    } else {
-      console.warn('API iniciada pero con problemas en la conexión a la base de datos');
+    // Validar que tenemos datos básicos
+    if (!req.body || !req.body.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Datos de plato incompletos'
+      });
     }
-  });
 
-// Rutas de la API
-router.get('/test', (req, res) => {
-  res.json({ message: 'API funcionando correctamente' });
+    // Log de los datos recibidos (sin imágenes para evitar logs enormes)
+    const logData = { ...req.body };
+    if (logData.image) {
+      logData.image = `[Imagen: ${logData.image.substring(0, 20)}...]`;
+    }
+    console.log('Datos recibidos para sincronización:', logData);
+
+    // Verificar si el plato ya existe
+    let [plato] = await db.execute('SELECT * FROM menu_items WHERE id = ?', [req.body.id]);
+
+    if (plato.length > 0) {
+      // Actualizar plato existente
+      await db.execute('UPDATE menu_items SET name = ?, description = ?, price = ?, category = ?, image_url = ?, is_available = ? WHERE id = ?',
+        [
+          req.body.name,
+          req.body.description || '',
+          Number(req.body.price) || 0,
+          req.body.category || 'principal',
+          req.body.image_url || '',
+          req.body.is_available !== false ? 1 : 0,
+          req.body.id
+        ]);
+      console.log(`Plato actualizado: ${req.body.id}`);
+    } else {
+      // Crear nuevo plato
+      const [result] = await db.execute('INSERT INTO menu_items (id, name, description, price, category, image_url, is_available) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          req.body.id,
+          req.body.name,
+          req.body.description || '',
+          Number(req.body.price) || 0,
+          req.body.category || 'principal',
+          req.body.image_url || '',
+          req.body.is_available !== false ? 1 : 0
+        ]);
+      console.log(`Nuevo plato creado: ${result.insertId}`);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Plato sincronizado correctamente',
+      data: { id: req.body.id }
+    });
+  } catch (error) {
+    console.error('Error al sincronizar plato:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al sincronizar plato',
+      error: error.message
+    });
+  }
 });
 
-// Ruta para obtener información del sistema
-router.get('/system-info', (req, res) => {
-  res.json({
-    nodeVersion: process.version,
-    platform: process.platform,
-    uptime: process.uptime(),
-    env: process.env.NODE_ENV || 'development',
-    dbConnected: db.sequelize !== null
+// Endpoint de prueba
+router.get('/test/ping', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Servidor disponible',
+    timestamp: new Date().toISOString()
   });
 });
-
-// Aquí irían el resto de tus rutas de API
 
 module.exports = router;

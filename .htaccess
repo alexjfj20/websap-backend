@@ -1,0 +1,63 @@
+# Configuración optimizada para WebSAP en producción
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /websap/
+  
+  # Permitir acceso directo a archivos y directorios existentes
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  
+  # Redirigir todas las demás solicitudes a index.html para el enrutador de Vue.js
+  RewriteRule ^(.*)$ index.html [L]
+</IfModule>
+
+# Configuración de seguridad
+<IfModule mod_headers.c>
+  # Evitar que los navegadores interpreten archivos como un tipo MIME diferente
+  Header set X-Content-Type-Options "nosniff"
+  
+  # Protección contra ataques XSS
+  Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Configuración de tipos MIME
+<IfModule mod_mime.c>
+  # JavaScript
+  AddType text/javascript .js
+  AddType application/javascript .js
+  
+  # CSS
+  AddType text/css .css
+  
+  # Fuentes
+  AddType font/ttf .ttf
+  AddType font/otf .otf
+  AddType font/woff .woff
+  AddType font/woff2 .woff2
+  
+  # JSON
+  AddType application/json .json
+</IfModule>
+
+# Caché para mejorar el rendimiento
+<IfModule mod_expires.c>
+  ExpiresActive On
+  
+  # HTML y datos
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType application/json "access plus 0 seconds"
+  
+  # CSS, JavaScript y recursos estáticos
+  ExpiresByType text/css "access plus 1 week"
+  ExpiresByType text/javascript "access plus 1 week"
+  ExpiresByType application/javascript "access plus 1 week"
+  ExpiresByType image/jpeg "access plus 1 month"
+  ExpiresByType image/png "access plus 1 month"
+  ExpiresByType image/svg+xml "access plus 1 month"
+  
+  # Fuentes
+  ExpiresByType font/ttf "access plus 1 month"
+  ExpiresByType font/otf "access plus 1 month"
+  ExpiresByType font/woff "access plus 1 month"
+  ExpiresByType font/woff2 "access plus 1 month"
+</IfModule>
